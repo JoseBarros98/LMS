@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import {
     LayoutDashboard, Calendar, BookOpen, Monitor, FolderOpen, Layers,
     Ticket, ChevronLeft, ChevronRight,
-    User, ShieldCheck
+    User, ShieldCheck, Tag
 } from 'lucide-react'
 
 const menu = [
@@ -32,6 +32,7 @@ const menu = [
         section: 'SOPORTE',
         items: [
             { label: 'Tickets', icon: Ticket, path: '/tickets' },
+            { label: 'Categorías', icon: Tag, path: '/categorias' },
         ]
 
     },

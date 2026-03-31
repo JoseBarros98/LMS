@@ -92,6 +92,7 @@ export default function Navbar({ collapsed }) {
                 </div>
               </div>
 
+
               {/* Ajustes */}
               <button
                 onClick={() => { navigate('/configuracion'); setDropdownOpen(false) }}
