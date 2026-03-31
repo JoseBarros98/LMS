@@ -10,8 +10,9 @@ from rest_framework import status
 from .models import Ticket, TicketCategory, TicketResponse
 from .serializers import (
     TicketCategorySerializer, TicketSerializer, TicketCreateSerializer, TicketUpdateSerializer,
-    TicketResponseSerializer, TicketResponseCreateSerializer
+    TicketResponseSerializer, TicketResponseCreateSerializer, NotificationSerializer
 )
+from .services import notify_ticket_created, notify_ticket_status_changed
 
 
 @api_view(['GET'])
@@ -214,6 +215,15 @@ class TicketViewSet(viewsets.ModelViewSet):
         else:
             permission_classes = [IsAuthenticated]
         return [permission() for permission in permission_classes]
+
+    def perform_create(self, serializer):
+        ticket = serializer.save()
+        notify_ticket_created(ticket, self.request.user)
+
+    def perform_update(self, serializer):
+        previous_status = serializer.instance.status
+        ticket = serializer.save()
+        notify_ticket_status_changed(ticket, previous_status, ticket.status, self.request.user)
     
     @action(detail=True, methods=['post'])
     def respond(self, request, pk=None):
@@ -238,8 +248,10 @@ class TicketViewSet(viewsets.ModelViewSet):
             
             # Si es respuesta de admin y el ticket estaba abierto, cambiar estado
             if (response.is_admin_response and ticket.status == 'open'):
+                previous_status = ticket.status
                 ticket.status = 'in_progress'
                 ticket.save()
+                notify_ticket_status_changed(ticket, previous_status, ticket.status, request.user)
             
             # Serializar y devolver respuesta
             response_serializer = TicketResponseSerializer(response)
@@ -286,8 +298,10 @@ class TicketViewSet(viewsets.ModelViewSet):
                     role__name__iexact='administrador'
                 )
                 ticket.assigned_to = assigned_user
+                previous_status = ticket.status
                 ticket.status = 'in_progress'
                 ticket.save()
+                notify_ticket_status_changed(ticket, previous_status, ticket.status, request.user)
                 
                 serializer = self.get_serializer(ticket)
                 return Response(serializer.data)
@@ -312,9 +326,39 @@ class TicketViewSet(viewsets.ModelViewSet):
             )
         
         ticket = self.get_object()
+        previous_status = ticket.status
         ticket.status = 'closed'
         ticket.resolved_at = timezone.now()
         ticket.save()
+        notify_ticket_status_changed(ticket, previous_status, ticket.status, request.user)
         
         serializer = self.get_serializer(ticket)
         return Response(serializer.data)
+
+
+class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return (
+            self.request.user.notifications
+            .select_related('ticket', 'recipient')
+            .all()
+        )
+
+    @action(detail=True, methods=['patch'])
+    def mark_read(self, request, pk=None):
+        notification = self.get_object()
+
+        if not notification.is_read:
+            notification.is_read = True
+            notification.save(update_fields=['is_read'])
+
+        serializer = self.get_serializer(notification)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['patch'])
+    def mark_all_read(self, request):
+        self.get_queryset().filter(is_read=False).update(is_read=True)
+        return Response({'detail': 'ok'}, status=status.HTTP_200_OK)

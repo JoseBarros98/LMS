@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import TicketCategory, Ticket, TicketResponse
+from .models import TicketCategory, Ticket, TicketResponse, Notification
 
 User = get_user_model()
 
@@ -136,3 +136,24 @@ class TicketResponseCreateSerializer(serializers.ModelSerializer):
         })
         
         return super().create(validated_data)
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    recipient_name = serializers.CharField(source='recipient.name', read_only=True)
+    ticket_id = serializers.IntegerField(source='ticket.id', read_only=True)
+
+    class Meta:
+        model = Notification
+        fields = [
+            'id',
+            'recipient',
+            'recipient_name',
+            'ticket',
+            'ticket_id',
+            'notification_type',
+            'title',
+            'message',
+            'is_read',
+            'created_at',
+        ]
+        read_only_fields = fields

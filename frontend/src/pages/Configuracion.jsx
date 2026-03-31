@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { updateUser } from '../api/users'
+import { notificationsApi } from '../api/notifications'
 import Layout from '../components/Layout'
-import { User, Save, Key, Shield, Lock, Computer, Bell } from 'lucide-react'
+import { User, Save, Key, Shield, Lock, Computer, Bell, Check, CheckCheck, BellOff, Ticket, RefreshCw } from 'lucide-react'
 
 export default function Configuracion() {
   const { user, updateUser: updateAuthUser } = useAuth()
@@ -24,6 +25,12 @@ export default function Configuracion() {
   const [loading, setLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('perfil')
   const fileRef = useRef(null)
+
+  // — Notificaciones —
+  const [notifications, setNotifications] = useState([])
+  const [notifLoading, setNotifLoading] = useState(false)
+  const [notifFilter, setNotifFilter] = useState('all') // 'all' | 'unread' | 'read'
+  const [markingAll, setMarkingAll] = useState(false)
 
   useEffect(() => {
     if (user) {
@@ -119,6 +126,80 @@ export default function Configuracion() {
       setLoading(false)
     }
   }
+
+  // ——— Lógica de notificaciones ———
+  const formatRelativeDate = (value) => {
+    if (!value) return ''
+    const date = new Date(value)
+    const diff = Math.floor((Date.now() - date.getTime()) / 1000)
+    if (diff < 60) return 'Hace unos segundos'
+    if (diff < 3600) return `Hace ${Math.floor(diff / 60)} min`
+    if (diff < 86400) return `Hace ${Math.floor(diff / 3600)} h`
+    return `Hace ${Math.floor(diff / 86400)} d`
+  }
+
+  const loadNotifications = useCallback(async () => {
+    setNotifLoading(true)
+    try {
+      const data = await notificationsApi.getNotifications()
+      setNotifications(Array.isArray(data) ? data : [])
+    } catch {
+      setNotifications([])
+    } finally {
+      setNotifLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeTab === 'notificaciones') {
+      loadNotifications()
+    }
+  }, [activeTab, loadNotifications])
+
+  const handleMarkAsRead = async (id) => {
+    try {
+      await notificationsApi.markAsRead(id)
+      setNotifications(prev =>
+        prev.map(n => n.id === id ? { ...n, is_read: true } : n)
+      )
+    } catch {
+      return
+    }
+  }
+
+  const handleMarkAllAsRead = async () => {
+    setMarkingAll(true)
+    try {
+      await notificationsApi.markAllAsRead()
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+    } catch {
+      return
+    } finally {
+      setMarkingAll(false)
+    }
+  }
+
+  const filteredNotifications = notifications.filter(n => {
+    if (notifFilter === 'unread') return !n.is_read
+    if (notifFilter === 'read') return n.is_read
+    return true
+  })
+
+  const unreadCount = notifications.filter(n => !n.is_read).length
+
+  const notifTypeLabel = (type) => {
+    if (type === 'ticket_created') return 'Ticket creado'
+    if (type === 'ticket_status_changed') return 'Estado actualizado'
+    return 'Notificación'
+  }
+
+  const notifTypeColor = (type) => {
+    if (type === 'ticket_created') return 'bg-blue-100 text-blue-600'
+    if (type === 'ticket_status_changed') return 'bg-green-100 text-green-600'
+    return 'bg-gray-100 text-gray-500'
+  }
+
+  // ——————————————————————————————
 
   const handleSubmitPassword = async (e) => {
     e.preventDefault()
@@ -467,6 +548,144 @@ export default function Configuracion() {
                       </div>
                     </form>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'notificaciones' && (
+              <div className="space-y-4">
+
+                {/* Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <h2 className="text-base font-bold text-gray-800">Centro de notificaciones</h2>
+                    <p className="text-sm text-gray-400">
+                      {notifications.length} en total
+                      {unreadCount > 0 && (
+                        <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-600">
+                          {unreadCount} sin leer
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={loadNotifications}
+                      disabled={notifLoading}
+                      className="p-2 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition disabled:opacity-50"
+                      title="Recargar"
+                    >
+                      <RefreshCw size={15} className={notifLoading ? 'animate-spin' : ''} />
+                    </button>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={handleMarkAllAsRead}
+                        disabled={markingAll}
+                        className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition disabled:opacity-50"
+                      >
+                        <CheckCheck size={15} />
+                        Marcar todas como leídas
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Filtros */}
+                <div className="flex gap-2">
+                  {[{ key: 'all', label: 'Todas', count: notifications.length },
+                    { key: 'unread', label: 'No leídas', count: unreadCount },
+                    { key: 'read', label: 'Leídas', count: notifications.length - unreadCount }
+                  ].map(({ key, label, count }) => (
+                    <button
+                      key={key}
+                      onClick={() => setNotifFilter(key)}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-lg transition flex items-center gap-1.5 ${
+                        notifFilter === key
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {label}
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
+                        notifFilter === key ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-500'
+                      }`}>
+                        {count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Lista */}
+                <div className="bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden">
+                  {notifLoading && notifications.length === 0 ? (
+                    <div className="flex items-center justify-center py-16 gap-2 text-gray-400">
+                      <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+                      <span className="text-sm">Cargando notificaciones...</span>
+                    </div>
+                  ) : filteredNotifications.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 gap-3 text-gray-400">
+                      <BellOff size={36} className="text-gray-300" />
+                      <p className="text-sm font-medium">
+                        {notifFilter === 'unread' ? 'No tienes notificaciones sin leer' :
+                         notifFilter === 'read' ? 'No tienes notificaciones leídas' :
+                         'No tienes notificaciones'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-gray-200">
+                      {filteredNotifications.map(notification => (
+                        <div
+                          key={notification.id}
+                          className={`flex items-start gap-4 px-5 py-4 transition ${
+                            notification.is_read ? 'bg-white' : 'bg-blue-50/40'
+                          }`}
+                        >
+                          {/* Ícono tipo */}
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                            notifTypeColor(notification.notification_type)
+                          }`}>
+                            {notification.notification_type === 'ticket_created'
+                              ? <Ticket size={16} />
+                              : <Bell size={16} />}
+                          </div>
+
+                          {/* Contenido */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                                  notifTypeColor(notification.notification_type)
+                                }`}>
+                                  {notifTypeLabel(notification.notification_type)}
+                                </span>
+                                <p className={`mt-1 text-sm ${
+                                  notification.is_read ? 'text-gray-600' : 'text-gray-800 font-semibold'
+                                }`}>
+                                  {notification.title}
+                                </p>
+                              </div>
+                              {!notification.is_read && (
+                                <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0 mt-1"></span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1 leading-relaxed">{notification.message}</p>
+                            <p className="text-[11px] text-gray-400 mt-2">{formatRelativeDate(notification.created_at)}</p>
+                          </div>
+
+                          {/* Acción */}
+                          {!notification.is_read && (
+                            <button
+                              onClick={() => handleMarkAsRead(notification.id)}
+                              className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition"
+                              title="Marcar como leída"
+                            >
+                              <Check size={15} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

@@ -1,10 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import TicketViewSet, TicketCategoryViewSet, category_list, ticket_list
+from .views import TicketViewSet, TicketCategoryViewSet, NotificationViewSet, category_list, ticket_list
 
 router = DefaultRouter()
 router.register(r"tickets", TicketViewSet, basename='ticket')
 router.register(r"categories", TicketCategoryViewSet, basename='category')
+router.register(r"notifications", NotificationViewSet, basename='notification')
 
 app_name = 'tickets'
 

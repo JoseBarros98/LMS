@@ -196,3 +196,49 @@ class TicketResponse(models.Model):
 
     def __str__(self):
         return f"Respuesta al ticket #{self.ticket.id} - {self.user.name}"
+
+
+class Notification(models.Model):
+    TYPE_TICKET_CREATED = 'ticket_created'
+    TYPE_TICKET_STATUS_CHANGED = 'ticket_status_changed'
+
+    TYPE_CHOICES = [
+        (TYPE_TICKET_CREATED, 'Ticket creado'),
+        (TYPE_TICKET_STATUS_CHANGED, 'Estado de ticket cambiado'),
+    ]
+
+    recipient = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='notifications',
+        verbose_name='Destinatario'
+    )
+    ticket = models.ForeignKey(
+        Ticket,
+        on_delete=models.CASCADE,
+        related_name='notifications',
+        null=True,
+        blank=True,
+        verbose_name='Ticket'
+    )
+    notification_type = models.CharField(
+        max_length=30,
+        choices=TYPE_CHOICES,
+        verbose_name='Tipo de notificacion'
+    )
+    title = models.CharField(max_length=200, verbose_name='Titulo')
+    message = models.TextField(verbose_name='Mensaje')
+    is_read = models.BooleanField(default=False, verbose_name='Leida')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creada en')
+
+    class Meta:
+        verbose_name = 'Notificacion'
+        verbose_name_plural = 'Notificaciones'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['recipient', 'is_read']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.title} -> {self.recipient.email}"
