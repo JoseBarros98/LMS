@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import Layout from '../components/Layout'
 import { ticketsApi } from '../api/tickets'
@@ -18,6 +19,8 @@ import {
 
 export default function Tickets() {
   const { user } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [tickets, setTickets] = useState([])
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
@@ -33,6 +36,26 @@ export default function Tickets() {
     loadTickets()
     loadCategories()
   }, [])
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const ticketId = params.get('ticketId')
+
+    if (!ticketId || tickets.length === 0) return
+
+    const ticketToOpen = tickets.find(t => String(t.id) === ticketId)
+    if (!ticketToOpen) return
+
+    setTicketEdit(ticketToOpen)
+    setModalOpen(true)
+
+    params.delete('ticketId')
+    const search = params.toString()
+    navigate(
+      { pathname: location.pathname, search: search ? `?${search}` : '' },
+      { replace: true }
+    )
+  }, [location.pathname, location.search, tickets, navigate])
 
   const loadTickets = async () => {
     try {

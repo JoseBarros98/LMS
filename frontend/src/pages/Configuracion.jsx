@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { updateUser } from '../api/users'
 import { notificationsApi } from '../api/notifications'
 import Layout from '../components/Layout'
-import { User, Save, Key, Shield, Lock, Computer, Bell, Check, CheckCheck, BellOff, Ticket, RefreshCw } from 'lucide-react'
+import { User, Save, Key, Shield, Lock, Computer, Bell, Check, CheckCheck, BellOff, Ticket, RefreshCw, Eye } from 'lucide-react'
 
 export default function Configuracion() {
   const { user, updateUser: updateAuthUser } = useAuth()
+  const navigate = useNavigate()
   const [formData, setFormData] = useState({
     name: '',
     paternal_surname: '',
@@ -197,6 +199,31 @@ export default function Configuracion() {
     if (type === 'ticket_created') return 'bg-blue-100 text-blue-600'
     if (type === 'ticket_status_changed') return 'bg-green-100 text-green-600'
     return 'bg-gray-100 text-gray-500'
+  }
+
+  const priorityBadge = (priority) => {
+    const styles = {
+      low: 'bg-gray-100 text-gray-600',
+      medium: 'bg-yellow-100 text-yellow-700',
+      high: 'bg-orange-100 text-orange-700',
+      urgent: 'bg-red-100 text-red-700',
+    }
+    return styles[priority] || 'bg-gray-100 text-gray-500'
+  }
+
+  const statusBadge = (status) => {
+    const styles = {
+      open: 'bg-yellow-100 text-yellow-700',
+      in_progress: 'bg-blue-100 text-blue-700',
+      resolved: 'bg-green-100 text-green-700',
+      closed: 'bg-gray-100 text-gray-600',
+    }
+    return styles[status] || 'bg-gray-100 text-gray-500'
+  }
+
+  const handleViewTicketDetail = (notification) => {
+    if (!notification.ticket_id) return
+    navigate(`/tickets?ticketId=${notification.ticket_id}`)
   }
 
   // ——————————————————————————————
@@ -592,9 +619,10 @@ export default function Configuracion() {
 
                 {/* Filtros */}
                 <div className="flex gap-2">
-                  {[{ key: 'all', label: 'Todas', count: notifications.length },
+                  {[
+                    { key: 'all',    label: 'Todas',     count: notifications.length },
                     { key: 'unread', label: 'No leídas', count: unreadCount },
-                    { key: 'read', label: 'Leídas', count: notifications.length - unreadCount }
+                    { key: 'read',   label: 'Leídas',    count: notifications.length - unreadCount },
                   ].map(({ key, label, count }) => (
                     <button
                       key={key}
@@ -615,8 +643,8 @@ export default function Configuracion() {
                   ))}
                 </div>
 
-                {/* Lista */}
-                <div className="bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden">
+                {/* Tabla */}
+                <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
                   {notifLoading && notifications.length === 0 ? (
                     <div className="flex items-center justify-center py-16 gap-2 text-gray-400">
                       <div className="w-5 h-5 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
@@ -627,63 +655,101 @@ export default function Configuracion() {
                       <BellOff size={36} className="text-gray-300" />
                       <p className="text-sm font-medium">
                         {notifFilter === 'unread' ? 'No tienes notificaciones sin leer' :
-                         notifFilter === 'read' ? 'No tienes notificaciones leídas' :
+                         notifFilter === 'read'   ? 'No tienes notificaciones leídas'   :
                          'No tienes notificaciones'}
                       </p>
                     </div>
                   ) : (
-                    <div className="divide-y divide-gray-200">
-                      {filteredNotifications.map(notification => (
-                        <div
-                          key={notification.id}
-                          className={`flex items-start gap-4 px-5 py-4 transition ${
-                            notification.is_read ? 'bg-white' : 'bg-blue-50/40'
-                          }`}
-                        >
-                          {/* Ícono tipo */}
-                          <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                            notifTypeColor(notification.notification_type)
-                          }`}>
-                            {notification.notification_type === 'ticket_created'
-                              ? <Ticket size={16} />
-                              : <Bell size={16} />}
-                          </div>
-
-                          {/* Contenido */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                                  notifTypeColor(notification.notification_type)
-                                }`}>
-                                  {notifTypeLabel(notification.notification_type)}
-                                </span>
-                                <p className={`mt-1 text-sm ${
-                                  notification.is_read ? 'text-gray-600' : 'text-gray-800 font-semibold'
-                                }`}>
-                                  {notification.title}
-                                </p>
-                              </div>
-                              {!notification.is_read && (
-                                <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0 mt-1"></span>
-                              )}
-                            </div>
-                            <p className="text-xs text-gray-500 mt-1 leading-relaxed">{notification.message}</p>
-                            <p className="text-[11px] text-gray-400 mt-2">{formatRelativeDate(notification.created_at)}</p>
-                          </div>
-
-                          {/* Acción */}
-                          {!notification.is_read && (
-                            <button
-                              onClick={() => handleMarkAsRead(notification.id)}
-                              className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition"
-                              title="Marcar como leída"
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-gray-200">
+                            <th className="text-left px-5 py-3 font-semibold text-gray-600 w-[40%]">Título</th>
+                            <th className="text-left px-5 py-3 font-semibold text-gray-600">Prioridad</th>
+                            <th className="text-left px-5 py-3 font-semibold text-gray-600">Fecha</th>
+                            <th className="text-left px-5 py-3 font-semibold text-gray-600">Estado</th>
+                            <th className="text-center px-5 py-3 font-semibold text-gray-600">Acciones</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {filteredNotifications.map(notification => (
+                            <tr
+                              key={notification.id}
+                              className={`transition hover:bg-gray-50 ${!notification.is_read ? 'bg-blue-50/30' : 'bg-white'}`}
                             >
-                              <Check size={15} />
-                            </button>
-                          )}
-                        </div>
-                      ))}
+                              {/* Título */}
+                              <td className="px-5 py-3.5">
+                                <div className="flex items-center gap-2.5">
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${notifTypeColor(notification.notification_type)}`}>
+                                    {notification.notification_type === 'ticket_created'
+                                      ? <Ticket size={14} />
+                                      : <Bell size={14} />}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className={`truncate ${notification.is_read ? 'text-gray-700' : 'text-gray-900 font-semibold'}`}>
+                                      {notification.title}
+                                    </p>
+                                    <p className="text-xs text-gray-400 truncate mt-0.5">{notification.message}</p>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Prioridad (tipo de notificación) */}
+                              <td className="px-5 py-3.5">
+                                {notification.ticket_priority ? (
+                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${priorityBadge(notification.ticket_priority)}`}>
+                                    {notification.ticket_priority_label || notification.ticket_priority}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-gray-400">Sin ticket</span>
+                                )}
+                              </td>
+
+                              {/* Fecha */}
+                              <td className="px-5 py-3.5 text-gray-500 whitespace-nowrap">
+                                <span title={notification.created_at ? new Date(notification.created_at).toLocaleString('es-BO') : ''}>
+                                  {formatRelativeDate(notification.created_at)}
+                                </span>
+                              </td>
+
+                              {/* Estado */}
+                              <td className="px-5 py-3.5">
+                                {notification.ticket_status ? (
+                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${statusBadge(notification.ticket_status)}`}>
+                                    {notification.ticket_status_label || notification.ticket_status}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-gray-400">Sin ticket</span>
+                                )}
+                              </td>
+
+                              {/* Acciones */}
+                              <td className="px-5 py-3.5 text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  <button
+                                    onClick={() => handleMarkAsRead(notification.id)}
+                                    disabled={notification.is_read}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Marcar como leída"
+                                  >
+                                    <Check size={13} />
+                                    Marcar como leído
+                                  </button>
+                                  <button
+                                    onClick={() => handleViewTicketDetail(notification)}
+                                    disabled={!notification.ticket_id}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-gray-700 bg-gray-100 hover:bg-gray-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="Ver detalle del ticket"
+                                  >
+                                    <Eye size={13} />
+                                    Ver detalle
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>

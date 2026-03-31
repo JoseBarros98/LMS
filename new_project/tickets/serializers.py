@@ -141,6 +141,10 @@ class TicketResponseCreateSerializer(serializers.ModelSerializer):
 class NotificationSerializer(serializers.ModelSerializer):
     recipient_name = serializers.CharField(source='recipient.name', read_only=True)
     ticket_id = serializers.IntegerField(source='ticket.id', read_only=True)
+    ticket_priority = serializers.CharField(source='ticket.priority', read_only=True)
+    ticket_priority_label = serializers.CharField(source='ticket.get_priority_display', read_only=True)
+    ticket_status = serializers.CharField(source='ticket.status', read_only=True)
+    ticket_status_label = serializers.CharField(source='ticket.get_status_display', read_only=True)
 
     class Meta:
         model = Notification
@@ -153,6 +157,10 @@ class NotificationSerializer(serializers.ModelSerializer):
             'notification_type',
             'title',
             'message',
+            'ticket_priority',
+            'ticket_priority_label',
+            'ticket_status',
+            'ticket_status_label',
             'is_read',
             'created_at',
         ]
