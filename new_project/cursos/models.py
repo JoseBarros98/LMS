@@ -55,6 +55,7 @@ class Curso(models.Model):
     ruta = models.ForeignKey(Ruta, on_delete=models.CASCADE, related_name='cursos', verbose_name='Ruta')
     titulo = models.CharField(max_length=250, verbose_name='Titulo')
     descripcion = models.TextField(blank=True, null=True, verbose_name='Descripcion')
+    imagen_portada = models.ImageField(upload_to='cursos/portadas/', blank=True, null=True, verbose_name='Imagen portada')
     imagen_portada_url = models.CharField(max_length=500, blank=True, null=True, verbose_name='Imagen portada URL')
     nivel = models.CharField(max_length=15, choices=NIVEL_CHOICES, default=NIVEL_AVANZADO, verbose_name='Nivel')
     estado = models.CharField(max_length=15, choices=ESTADO_CHOICES, default=ESTADO_DISPONIBLE, verbose_name='Estado')

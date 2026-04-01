@@ -33,6 +33,8 @@ class CursoSerializer(serializers.ModelSerializer):
     ruta_titulo = serializers.CharField(source='ruta.titulo', read_only=True)
     nivel_label = serializers.CharField(source='get_nivel_display', read_only=True)
     estado_label = serializers.CharField(source='get_estado_display', read_only=True)
+    imagen_portada_url = serializers.SerializerMethodField()
+    imagen_portada = serializers.ImageField(write_only=True, required=False, allow_null=True)
 
     class Meta:
         model = Curso
@@ -42,6 +44,7 @@ class CursoSerializer(serializers.ModelSerializer):
             'ruta_titulo',
             'titulo',
             'descripcion',
+            'imagen_portada',
             'imagen_portada_url',
             'nivel',
             'nivel_label',
@@ -61,9 +64,20 @@ class CursoSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['created_at', 'updated_at']
 
+    def get_imagen_portada_url(self, obj):
+        if obj.imagen_portada:
+            try:
+                return obj.imagen_portada.url  # returns /media/cursos/portadas/...
+            except ValueError:
+                pass
+        return None  # ignore old CharField - it stored non-image URLs
+
     def validate(self, attrs):
         fecha_desde = attrs.get('fecha_disponible_desde')
         fecha_hasta = attrs.get('fecha_disponible_hasta')
+
+        if not self.instance and not attrs.get('imagen_portada'):
+            raise serializers.ValidationError({'imagen_portada': 'Debes subir una imagen de portada.'})
 
         if self.instance:
             if fecha_desde is None:

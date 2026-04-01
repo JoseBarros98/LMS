@@ -43,6 +43,7 @@ export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed }) {
       fecha_disponible_hasta: cursoEdit.fecha_disponible_hasta || '',
     }
   })
+  const [portadaFile, setPortadaFile] = useState(null)
   const [error, setError] = useState('')
 
   const isEditing = Boolean(cursoEdit)
@@ -57,6 +58,13 @@ export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed }) {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
+    if (type === 'file') {
+      setPortadaFile(e.target.files?.[0] || null)
+      if (error) {
+        setError('')
+      }
+      return
+    }
     const nextValue = type === 'checkbox' ? checked : value
     setFormData((prev) => ({ ...prev, [name]: nextValue }))
 
@@ -79,6 +87,11 @@ export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed }) {
       return
     }
 
+    if (!isEditing && !portadaFile) {
+      setError('Debes subir una imagen de portada.')
+      return
+    }
+
     if (
       formData.fecha_disponible_desde &&
       formData.fecha_disponible_hasta &&
@@ -91,6 +104,7 @@ export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed }) {
     try {
       await onSubmit({
         ...formData,
+        _imagen_portada_file: portadaFile,
         orden: Number(formData.orden) || 0,
         total_lecciones: Number(formData.total_lecciones) || 0,
         duracion_total_min: Number(formData.duracion_total_min) || 0,
@@ -179,15 +193,20 @@ export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed }) {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Imagen portada URL</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Imagen portada {isEditing ? '(reemplazar opcional)' : '(obligatoria)'}</label>
               <input
-                type="url"
-                name="imagen_portada_url"
-                value={formData.imagen_portada_url}
+                type="file"
+                name="imagen_portada"
+                accept="image/*"
                 onChange={handleChange}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                placeholder="https://..."
+                required={!isEditing}
               />
+              {(portadaFile || formData.imagen_portada_url) && (
+                <p className="mt-1 text-xs text-gray-500 truncate">
+                  {portadaFile ? `Seleccionada: ${portadaFile.name}` : 'El curso tiene portada actual cargada.'}
+                </p>
+              )}
             </div>
 
             <div>

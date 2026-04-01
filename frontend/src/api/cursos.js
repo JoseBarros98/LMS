@@ -41,9 +41,35 @@ export const cursosApi = {
     return response.data
   },
 
-  createCurso: (data) => api.post('/cursos/', sanitizePayload(data)),
+  createCurso: (data) => {
+    if (data._imagen_portada_file) {
+      const formData = new FormData()
+      Object.entries(data).forEach(([key, val]) => {
+        if (key === '_imagen_portada_file') {
+          formData.append('imagen_portada', val)
+        } else if (key !== 'imagen_portada_url' && val !== null && val !== undefined && val !== '') {
+          formData.append(key, String(val))
+        }
+      })
+      return api.post('/cursos/', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    }
+    return api.post('/cursos/', sanitizePayload(data))
+  },
 
-  updateCurso: (id, data) => api.patch(`/cursos/${id}/`, sanitizePayload(data)),
+  updateCurso: (id, data) => {
+    if (data._imagen_portada_file) {
+      const formData = new FormData()
+      Object.entries(data).forEach(([key, val]) => {
+        if (key === '_imagen_portada_file') {
+          formData.append('imagen_portada', val)
+        } else if (key !== 'imagen_portada_url' && val !== null && val !== undefined && val !== '') {
+          formData.append(key, String(val))
+        }
+      })
+      return api.patch(`/cursos/${id}/`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    }
+    return api.patch(`/cursos/${id}/`, sanitizePayload(data))
+  },
 
   deleteCurso: (id) => api.delete(`/cursos/${id}/`),
 
