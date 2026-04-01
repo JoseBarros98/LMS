@@ -8,11 +8,13 @@ const sanitizePayload = (data) => {
     'imagen_portada_url',
     'slug',
     'video_intro_url',
+    'url',
     'fecha_disponible_desde',
     'fecha_disponible_hasta',
     'codigo_acceso',
     'fecha_inicio',
     'fecha_fin',
+    'parent',
   ].forEach((field) => {
     if (payload[field] === '') {
       payload[field] = null
@@ -98,12 +100,40 @@ export const cursosApi = {
 
   deleteComentario: (id) => api.delete(`/comentarios-curso/${id}/`),
 
-  getMediateca: async (cursoId) => {
-    const response = await api.get('/mediateca-item/', { params: { curso_id: cursoId } })
+  getMediateca: async (cursoId, params = {}) => {
+    const response = await api.get('/mediateca-item/', { params: { curso_id: cursoId, ...params } })
     return response.data
   },
 
-  createMediatecaItem: (data) => api.post('/mediateca-item/', data),
+  createMediatecaItem: (data) => {
+    if (data._file) {
+      const formData = new FormData()
+      Object.entries(data).forEach(([key, val]) => {
+        if (key === '_file') {
+          formData.append('archivo', val)
+        } else if (val !== null && val !== undefined) {
+          formData.append(key, String(val))
+        }
+      })
+      return api.post('/mediateca-item/', formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    }
+    return api.post('/mediateca-item/', sanitizePayload(data))
+  },
+
+  updateMediatecaItem: (id, data) => {
+    if (data._file) {
+      const formData = new FormData()
+      Object.entries(data).forEach(([key, val]) => {
+        if (key === '_file') {
+          formData.append('archivo', val)
+        } else if (val !== null && val !== undefined) {
+          formData.append(key, String(val))
+        }
+      })
+      return api.patch(`/mediateca-item/${id}/`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    }
+    return api.patch(`/mediateca-item/${id}/`, sanitizePayload(data))
+  },
 
   deleteMediatecaItem: (id) => api.delete(`/mediateca-item/${id}/`),
 

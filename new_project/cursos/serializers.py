@@ -194,21 +194,74 @@ class SeccionDetalleSerializer(serializers.ModelSerializer):
 
 class MediatecaItemSerializer(serializers.ModelSerializer):
     tipo_label = serializers.CharField(source='get_tipo_display', read_only=True)
-    curso = serializers.PrimaryKeyRelatedField(queryset=Curso.objects.all(), write_only=True)
+    curso = serializers.PrimaryKeyRelatedField(queryset=Curso.objects.all(), write_only=True, required=False)
+    parent = serializers.PrimaryKeyRelatedField(queryset=MediatecaItem.objects.all(), allow_null=True, required=False)
+    parent_titulo = serializers.CharField(source='parent.titulo', read_only=True)
+    children_count = serializers.SerializerMethodField()
+    archivo = serializers.FileField(required=False, allow_null=True)
 
     class Meta:
         model = MediatecaItem
         fields = [
             'id',
             'curso',
+            'parent',
+            'parent_titulo',
             'titulo',
             'descripcion',
             'tipo',
             'tipo_label',
             'url',
+            'archivo',
             'orden',
             'publicado',
+            'children_count',
         ]
+
+    def get_children_count(self, obj):
+        return obj.children.count()
+
+    def validate(self, attrs):
+        curso = attrs.get('curso')
+        parent = attrs.get('parent')
+        tipo = attrs.get('tipo', getattr(self.instance, 'tipo', MediatecaItem.TIPO_DOCUMENTO))
+        url = attrs.get('url')
+        archivo = attrs.get('archivo')
+
+        if self.instance and curso is None:
+            curso = self.instance.curso
+
+        # On create, curso is required
+        if not self.instance and not attrs.get('curso'):
+            raise serializers.ValidationError({'curso': 'Este campo es requerido al crear un elemento.'})
+
+        if parent:
+            if parent.tipo != MediatecaItem.TIPO_CARPETA:
+                raise serializers.ValidationError({'parent': 'Solo puedes guardar elementos dentro de una carpeta.'})
+
+            if curso and parent.curso_id != curso.id:
+                raise serializers.ValidationError({'parent': 'La carpeta padre debe pertenecer al mismo curso.'})
+
+            if self.instance and parent.id == self.instance.id:
+                raise serializers.ValidationError({'parent': 'Un elemento no puede ser su propia carpeta padre.'})
+
+        if tipo == MediatecaItem.TIPO_CARPETA:
+            attrs['url'] = None
+            attrs['archivo'] = None
+        else:
+            if archivo is not None:
+                # New file uploaded: clear url
+                attrs['url'] = None
+            elif url:
+                # URL provided: clear existing archivo reference
+                attrs['archivo'] = None
+            else:
+                # Neither provided in this request
+                if not self.instance:
+                    raise serializers.ValidationError({'url': 'Debes proporcionar una URL o subir un archivo.'})
+                # On partial update: keep existing values
+
+        return attrs
 
 
 class CursoDetalleSerializer(CursoSerializer):

@@ -365,11 +365,18 @@ class MediatecaItemViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
 
     def get_queryset(self):
-        queryset = MediatecaItem.objects.select_related('curso').all()
+        queryset = MediatecaItem.objects.select_related('curso', 'parent').prefetch_related('children').all()
         curso_id = self.request.query_params.get('curso_id')
+        parent_id = self.request.query_params.get('parent_id')
 
         if curso_id:
             queryset = queryset.filter(curso_id=curso_id)
+
+        if parent_id is not None:
+            if parent_id in {'', 'null', 'None', 'root'}:
+                queryset = queryset.filter(parent__isnull=True)
+            else:
+                queryset = queryset.filter(parent_id=parent_id)
 
         if not is_admin_user(self.request.user):
             queryset = queryset.filter(publicado=True)

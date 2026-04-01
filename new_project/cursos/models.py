@@ -224,12 +224,14 @@ class ComentarioCurso(models.Model):
 
 
 class MediatecaItem(models.Model):
+    TIPO_CARPETA = 'carpeta'
     TIPO_VIDEO = 'video'
     TIPO_AUDIO = 'audio'
     TIPO_DOCUMENTO = 'documento'
     TIPO_ENLACE = 'enlace'
 
     TIPO_CHOICES = [
+        (TIPO_CARPETA, 'Carpeta'),
         (TIPO_VIDEO, 'Video'),
         (TIPO_AUDIO, 'Audio'),
         (TIPO_DOCUMENTO, 'Documento'),
@@ -238,10 +240,12 @@ class MediatecaItem(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     curso = models.ForeignKey(Curso, on_delete=models.CASCADE, related_name='mediateca_items')
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, related_name='children', blank=True, null=True)
     titulo = models.CharField(max_length=250)
     descripcion = models.TextField(blank=True, null=True)
     tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default=TIPO_DOCUMENTO)
-    url = models.CharField(max_length=500)
+    url = models.CharField(max_length=500, blank=True, null=True)
+    archivo = models.FileField(upload_to='mediateca/', blank=True, null=True, verbose_name='Archivo')
     orden = models.SmallIntegerField(default=0)
     publicado = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

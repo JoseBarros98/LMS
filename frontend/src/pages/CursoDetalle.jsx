@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Clock3, MessageCircle, Send, Trash2, BookOpen, Package, Settings, Plus, X } from 'lucide-react'
+import { ArrowLeft, Clock3, MessageCircle, Send, Trash2, BookOpen, Package, Settings, Plus, X, Folder, FolderOpen, FileText, Search, ChevronRight, Link2, Video, Headphones, Pencil, Upload } from 'lucide-react'
 import Layout from '../components/Layout'
 import { cursosApi } from '../api/cursos'
 import { useAuth } from '../context/AuthContext'
@@ -32,6 +32,86 @@ const initialLeccionForm = {
   duracion_min: 0,
   orden: 0,
   publicado: true,
+}
+
+const initialMediatecaForm = {
+  titulo: '',
+  descripcion: '',
+  tipo: 'documento',
+  url: '',
+  orden: 0,
+  publicado: true,
+}
+
+const sortMediatecaItems = (items) => {
+  return [...items].sort((left, right) => {
+    const leftIsFolder = left.tipo === 'carpeta'
+    const rightIsFolder = right.tipo === 'carpeta'
+
+    if (leftIsFolder && !rightIsFolder) return -1
+    if (!leftIsFolder && rightIsFolder) return 1
+
+    if ((left.orden || 0) !== (right.orden || 0)) {
+      return (left.orden || 0) - (right.orden || 0)
+    }
+
+    return left.titulo.localeCompare(right.titulo)
+  })
+}
+
+const getMediatecaItemMeta = (item) => {
+  switch (item.tipo) {
+    case 'carpeta':
+      return {
+        Icon: FolderOpen,
+        badge: 'Carpeta',
+        surfaceClassName: 'bg-gradient-to-br from-blue-50 to-sky-100 text-blue-600',
+        actionLabel: 'Abrir carpeta',
+      }
+    case 'video':
+      return {
+        Icon: Video,
+        badge: 'Video',
+        surfaceClassName: 'bg-gradient-to-br from-rose-50 to-orange-100 text-rose-600',
+        actionLabel: 'Abrir video',
+      }
+    case 'audio':
+      return {
+        Icon: Headphones,
+        badge: 'Audio',
+        surfaceClassName: 'bg-gradient-to-br from-emerald-50 to-teal-100 text-emerald-600',
+        actionLabel: 'Abrir audio',
+      }
+    case 'enlace':
+      return {
+        Icon: Link2,
+        badge: 'Enlace',
+        surfaceClassName: 'bg-gradient-to-br from-violet-50 to-indigo-100 text-violet-600',
+        actionLabel: 'Abrir enlace',
+      }
+    default:
+      return {
+        Icon: FileText,
+        badge: 'Archivo',
+        surfaceClassName: 'bg-gradient-to-br from-amber-50 to-red-100 text-red-600',
+        actionLabel: 'Abrir archivo',
+      }
+  }
+}
+
+// Rewrite backend-absolute media URLs to go through Nginx (/media/...),
+// avoiding cross-origin issues and X-Frame-Options blocks.
+const normalizeMediaUrl = (url) => {
+  if (!url) return url
+  try {
+    const parsed = new URL(url)
+    if (parsed.pathname.startsWith('/media/')) {
+      return parsed.pathname
+    }
+  } catch {
+    // relative or non-standard URL — return as-is
+  }
+  return url
 }
 
 const getYoutubeEmbedUrl = (url) => {
@@ -104,7 +184,14 @@ export default function CursoDetalle() {
   const [seccionForm, setSeccionForm] = useState({ titulo: '', descripcion: '', orden: 0 })
   const [leccionForm, setLeccionForm] = useState(initialLeccionForm)
   const [leccionEdit, setLeccionEdit] = useState(null)
-  const [mediatecaForm, setMediatecaForm] = useState({ titulo: '', descripcion: '', tipo: 'documento', url: '', publicado: true })
+  const [mediatecaForm, setMediatecaForm] = useState(initialMediatecaForm)
+  const [mediatecaCurrentFolderId, setMediatecaCurrentFolderId] = useState(null)
+  const [mediatecaSearch, setMediatecaSearch] = useState('')
+  const [mediatecaCreateMode, setMediatecaCreateMode] = useState('archivo')
+  const [mediatecaEdit, setMediatecaEdit] = useState(null)
+  const [mediatecaUploadMode, setMediatecaUploadMode] = useState('url')
+  const [mediatecaFile, setMediatecaFile] = useState(null)
+  const [pdfModalItem, setPdfModalItem] = useState(null)
 
   const isAdmin = user?.role?.name?.toLowerCase() === 'administrador'
 
@@ -191,6 +278,51 @@ export default function CursoDetalle() {
     return leccionesPublicadas.filter((leccion) => progresoMap[leccion.id]?.completada).length
   }, [leccionesPublicadas, progresoMap])
 
+  const mediatecaById = useMemo(() => {
+    return mediateca.reduce((accumulator, item) => {
+      accumulator[item.id] = item
+      return accumulator
+    }, {})
+  }, [mediateca])
+
+  const mediatecaCurrentFolder = mediatecaCurrentFolderId ? mediatecaById[mediatecaCurrentFolderId] : null
+
+  const mediatecaBreadcrumbs = useMemo(() => {
+    const crumbs = []
+    let current = mediatecaCurrentFolder
+
+    while (current) {
+      crumbs.unshift(current)
+      current = current.parent ? mediatecaById[current.parent] : null
+    }
+
+    return crumbs
+  }, [mediatecaById, mediatecaCurrentFolder])
+
+  const mediatecaVisibleItems = useMemo(() => {
+    const normalizedSearch = mediatecaSearch.trim().toLowerCase()
+    const currentItems = mediateca.filter((item) => (item.parent || null) === mediatecaCurrentFolderId)
+    const filteredItems = normalizedSearch
+      ? currentItems.filter((item) => `${item.titulo} ${item.descripcion || ''}`.toLowerCase().includes(normalizedSearch))
+      : currentItems
+
+    return sortMediatecaItems(filteredItems)
+  }, [mediateca, mediatecaCurrentFolderId, mediatecaSearch])
+
+  const mediatecaStats = useMemo(() => {
+    return mediatecaVisibleItems.reduce(
+      (accumulator, item) => {
+        if (item.tipo === 'carpeta') {
+          accumulator.folders += 1
+        } else {
+          accumulator.files += 1
+        }
+        return accumulator
+      },
+      { folders: 0, files: 0 }
+    )
+  }, [mediatecaVisibleItems])
+
   useEffect(() => {
     if (leccionesPublicadas.length === 0) {
       setSelectedLeccion(null)
@@ -207,6 +339,12 @@ export default function CursoDetalle() {
       setSelectedLeccion(leccionesPublicadas[0])
     }
   }, [leccionesPublicadas, selectedLeccion])
+
+  useEffect(() => {
+    if (mediatecaCurrentFolderId && !mediatecaById[mediatecaCurrentFolderId]) {
+      setMediatecaCurrentFolderId(null)
+    }
+  }, [mediatecaById, mediatecaCurrentFolderId])
 
   // Admin handlers
   const handleCrearSeccion = async (e) => {
@@ -286,24 +424,86 @@ export default function CursoDetalle() {
     }
   }
 
-  const handleCrearMediateca = async (e) => {
+  const handleGuardarMediateca = async (e) => {
     e.preventDefault()
-    if (!mediatecaForm.titulo.trim() || !mediatecaForm.url.trim()) {
-      alert('Completa todos los campos requeridos.')
+    const isFolder = mediatecaCreateMode === 'carpeta'
+
+    if (!mediatecaForm.titulo.trim()) {
+      alert('El título es requerido.')
       return
     }
 
+    if (!isFolder) {
+      if (mediatecaUploadMode === 'file' && !mediatecaFile && !mediatecaEdit?.archivo) {
+        alert('Selecciona un archivo para subir.')
+        return
+      }
+      if (mediatecaUploadMode === 'url' && !mediatecaForm.url.trim() && !mediatecaEdit?.url) {
+        alert('La URL es requerida.')
+        return
+      }
+    }
+
+    const payload = {
+      titulo: mediatecaForm.titulo,
+      descripcion: mediatecaForm.descripcion,
+      tipo: isFolder ? 'carpeta' : mediatecaForm.tipo,
+      orden: mediatecaForm.orden,
+      publicado: mediatecaForm.publicado,
+    }
+
+    if (!mediatecaEdit) {
+      payload.curso = id
+      payload.parent = mediatecaCurrentFolderId
+    }
+
+    if (!isFolder) {
+      if (mediatecaUploadMode === 'file' && mediatecaFile) {
+        payload._file = mediatecaFile
+      } else {
+        payload.url = mediatecaForm.url
+      }
+    }
+
     try {
-      await cursosApi.createMediatecaItem({
-        curso: id,
-        ...mediatecaForm,
-      })
-      setMediatecaForm({ titulo: '', descripcion: '', tipo: 'documento', url: '', publicado: true })
+      if (mediatecaEdit) {
+        await cursosApi.updateMediatecaItem(mediatecaEdit.id, payload)
+      } else {
+        await cursosApi.createMediatecaItem(payload)
+      }
+      setMediatecaForm(initialMediatecaForm)
+      setMediatecaEdit(null)
+      setMediatecaFile(null)
+      setMediatecaUploadMode('url')
       setMediatecaModalOpen(false)
       await loadData()
     } catch {
-      alert('No se pudo crear el item de mediateca.')
+      alert(`No se pudo ${mediatecaEdit ? 'actualizar' : 'crear'} ${isFolder ? 'la carpeta' : 'el archivo'}.`)
     }
+  }
+
+  const openMediatecaModal = (mode, item = null) => {
+    setMediatecaCreateMode(mode)
+    setMediatecaEdit(item)
+    setMediatecaFile(null)
+    if (item) {
+      setMediatecaForm({
+        titulo: item.titulo || '',
+        descripcion: item.descripcion || '',
+        tipo: item.tipo || 'documento',
+        url: item.url || '',
+        orden: item.orden || 0,
+        publicado: item.publicado !== false,
+      })
+      setMediatecaUploadMode(item.archivo ? 'file' : 'url')
+    } else {
+      setMediatecaForm({
+        ...initialMediatecaForm,
+        tipo: mode === 'carpeta' ? 'carpeta' : 'documento',
+      })
+      setMediatecaUploadMode('url')
+    }
+    setMediatecaModalOpen(true)
   }
 
   const handleEliminarMediateca = async (itemId) => {
@@ -592,41 +792,168 @@ export default function CursoDetalle() {
         )}
 
         {activeTab === 'mediateca' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {mediateca.length === 0 ? (
-              <div className="col-span-full bg-white border border-gray-200 rounded-2xl p-8 text-center">
+          <div className="space-y-4">
+            <div className="bg-white border border-gray-200 rounded-2xl p-4 space-y-4">
+              <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600">
+                  <button
+                    onClick={() => setMediatecaCurrentFolderId(null)}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-gray-50 hover:bg-gray-100 transition"
+                  >
+                    <Folder size={16} className="text-blue-600" />
+                    {curso.titulo}
+                  </button>
+                  {mediatecaBreadcrumbs.map((crumb) => (
+                    <div key={crumb.id} className="inline-flex items-center gap-2">
+                      <ChevronRight size={14} className="text-gray-400" />
+                      <button
+                        onClick={() => setMediatecaCurrentFolderId(crumb.id)}
+                        className="px-3 py-1.5 rounded-lg bg-gray-50 border border-gray-200 hover:bg-gray-100 transition"
+                      >
+                        {crumb.titulo}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {isAdmin && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => openMediatecaModal('carpeta')}
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 text-sm font-medium hover:bg-blue-100 transition"
+                    >
+                      <Folder size={16} />
+                      Nueva Carpeta
+                    </button>
+                    <button
+                      onClick={() => openMediatecaModal('archivo')}
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition"
+                    >
+                      <Plus size={16} />
+                      Nuevo Archivo
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div className="relative w-full max-w-xl">
+                  <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={mediatecaSearch}
+                    onChange={(e) => setMediatecaSearch(e.target.value)}
+                    placeholder="Buscar en esta mediateca"
+                    className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500">
+                  {mediatecaCurrentFolder && (
+                    <button
+                      onClick={() => setMediatecaCurrentFolderId(mediatecaCurrentFolder.parent || null)}
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition text-gray-700"
+                    >
+                      <ArrowLeft size={16} />
+                      Volver
+                    </button>
+                  )}
+                  <span>Carpetas {mediatecaStats.folders}</span>
+                  <span>Archivos {mediatecaStats.files}</span>
+                </div>
+              </div>
+            </div>
+
+            {mediatecaVisibleItems.length === 0 ? (
+              <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center">
                 <Package size={32} className="mx-auto text-gray-400 mb-3" />
-                <p className="text-gray-600">Sin recursos en la mediateca.</p>
+                <p className="text-gray-700 font-medium">No hay elementos en esta carpeta.</p>
+                <p className="mt-2 text-sm text-gray-500">
+                  {isAdmin ? 'Crea una carpeta o un archivo para comenzar a organizar la mediateca.' : 'No hay contenido disponible en esta ubicación.'}
+                </p>
               </div>
             ) : (
-              mediateca.map((item) => (
-                <div key={item.id} className="bg-white border border-gray-200 rounded-2xl p-4 hover:shadow-md transition">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1">
-                      <p className="font-semibold text-gray-800 line-clamp-2">{item.titulo}</p>
-                      <p className="text-sm text-gray-600 mt-1">{item.descripcion}</p>
-                    </div>
-                    {isAdmin && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+                {mediatecaVisibleItems.map((item) => {
+                  const { Icon, badge, surfaceClassName, actionLabel } = getMediatecaItemMeta(item)
+                  const isFolder = item.tipo === 'carpeta'
+
+                  return (
+                    <div key={item.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition">
                       <button
-                        onClick={() => handleEliminarMediateca(item.id)}
-                        className="text-red-600 hover:text-red-700 transition"
+                        type="button"
+                        onClick={() => {
+                          if (isFolder) {
+                            setMediatecaCurrentFolderId(item.id)
+                          } else {
+                            const rawTarget = item.archivo || item.url
+                            if (!rawTarget) return
+                            const isPdf = /\.pdf(\?.*)?$/i.test(rawTarget) || item.tipo === 'documento'
+                            if (isPdf) {
+                              setPdfModalItem(item)
+                            } else {
+                              window.open(normalizeMediaUrl(rawTarget), '_blank', 'noopener,noreferrer')
+                            }
+                          }
+                        }}
+                        className="w-full text-left"
                       >
-                        <Trash2 size={16} />
+                        <div className={`h-40 px-5 py-4 flex items-end ${surfaceClassName}`}>
+                          <div className="flex items-center justify-between w-full">
+                            <Icon size={48} strokeWidth={1.75} />
+                            <span className="px-2 py-1 rounded-full bg-white/80 text-[11px] font-semibold text-gray-700">
+                              {badge}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="p-4 space-y-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-gray-800 line-clamp-2">{item.titulo}</p>
+                              <p className="text-sm text-gray-500 mt-1 line-clamp-2">{item.descripcion || (isFolder ? 'Carpeta de contenido' : 'Archivo de apoyo del curso')}</p>
+                            </div>
+                            {isAdmin && (
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    openMediatecaModal(item.tipo === 'carpeta' ? 'carpeta' : 'archivo', item)
+                                  }}
+                                  className="text-blue-500 hover:text-blue-700 transition p-1"
+                                >
+                                  <Pencil size={15} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleEliminarMediateca(item.id)
+                                  }}
+                                  className="text-red-600 hover:text-red-700 transition p-1"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between gap-3 text-xs text-gray-500">
+                            <span>{isFolder ? `${item.children_count || 0} elementos` : badge}</span>
+                            <span>Orden #{item.orden || 0}</span>
+                          </div>
+
+                          <div className="inline-flex items-center gap-2 text-sm font-medium text-blue-700">
+                            {isFolder ? <Folder size={16} /> : <Link2 size={16} />}
+                            {actionLabel}
+                          </div>
+                        </div>
                       </button>
-                    )}
-                  </div>
-                  {item.url && (
-                    <a
-                      href={item.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-3 inline-block px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
-                    >
-                      {item.tipo === 'enlace' ? 'Abrir' : 'Descargar'}
-                    </a>
-                  )}
-                </div>
-              ))
+                    </div>
+                  )
+                })}
+              </div>
             )}
           </div>
         )}
@@ -711,22 +1038,37 @@ export default function CursoDetalle() {
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-200 p-6 space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-3">
                 <h2 className="text-xl font-semibold text-gray-800">Recursos de Mediateca</h2>
-                <button
-                  onClick={() => setMediatecaModalOpen(true)}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition"
-                >
-                  <Plus size={16} />
-                  Nuevo Recurso
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setMediatecaCurrentFolderId(null)
+                      openMediatecaModal('carpeta')
+                    }}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 text-sm font-medium hover:bg-blue-100 transition"
+                  >
+                    <Folder size={16} />
+                    Nueva Carpeta
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMediatecaCurrentFolderId(null)
+                      openMediatecaModal('archivo')
+                    }}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition"
+                  >
+                    <Plus size={16} />
+                    Nuevo Recurso
+                  </button>
+                </div>
               </div>
 
               {mediateca.length === 0 ? (
                 <p className="text-sm text-gray-600">No hay recursos en la mediateca.</p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {mediateca.map((item) => (
+                  {sortMediatecaItems(mediateca).map((item) => (
                     <div key={item.id} className="border border-gray-200 rounded-lg p-3 space-y-2">
                       <div className="flex items-start justify-between gap-2">
                         <p className="font-medium text-sm text-gray-800 line-clamp-2">{item.titulo}</p>
@@ -737,7 +1079,9 @@ export default function CursoDetalle() {
                           <Trash2 size={14} />
                         </button>
                       </div>
-                      <p className="text-xs text-gray-600">{item.tipo} • Orden #{item.orden}</p>
+                      <p className="text-xs text-gray-600">
+                        {item.tipo} • {item.parent_titulo ? `Dentro de ${item.parent_titulo}` : 'Raíz'} • Orden #{item.orden || 0}
+                      </p>
                       <span className={`text-xs px-2 py-1 rounded inline-block ${item.publicado ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
                         {item.publicado ? 'Publicado' : 'Borrador'}
                       </span>
@@ -908,21 +1252,77 @@ export default function CursoDetalle() {
         </div>
       )}
 
-      {/* Modal: Nuevo Recurso */}
+      {/* Modal: Visor PDF */}
+      {pdfModalItem && (() => {
+        const pdfSrc = normalizeMediaUrl(pdfModalItem.archivo || pdfModalItem.url)
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col" style={{ height: '90vh' }}>
+              <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 shrink-0">
+                <div className="flex items-center gap-3 min-w-0">
+                  <FileText size={18} className="text-gray-500 shrink-0" />
+                  <span className="font-semibold text-gray-800 truncate">{pdfModalItem.titulo}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href={pdfSrc}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm text-gray-600 transition"
+                  >
+                    <Link2 size={14} />
+                    Abrir en pestaña
+                  </a>
+                  <button
+                    onClick={() => setPdfModalItem(null)}
+                    className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+              <iframe
+                src={pdfSrc}
+                className="flex-1 w-full border-0 rounded-b-2xl"
+                title={pdfModalItem.titulo}
+              />
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Modal: Nuevo / Editar Recurso */}
       {mediatecaModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h3 className="text-lg font-bold text-gray-800">Nuevo Recurso de Mediateca</h3>
+              <h3 className="text-lg font-bold text-gray-800">
+                {mediatecaEdit
+                  ? `Editar ${mediatecaCreateMode === 'carpeta' ? 'Carpeta' : 'Archivo'}`
+                  : mediatecaCreateMode === 'carpeta'
+                    ? 'Nueva Carpeta de Mediateca'
+                    : 'Nuevo Archivo de Mediateca'}
+              </h3>
               <button
-                onClick={() => setMediatecaModalOpen(false)}
+                onClick={() => {
+                  setMediatecaModalOpen(false)
+                  setMediatecaEdit(null)
+                  setMediatecaFile(null)
+                  setMediatecaForm(initialMediatecaForm)
+                }}
                 className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 transition"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <form onSubmit={handleCrearMediateca} className="px-6 py-5 space-y-4">
+            <form onSubmit={handleGuardarMediateca} className="px-6 py-5 space-y-4">
+              {!mediatecaEdit && (
+                <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-800">
+                  Se guardará en: {mediatecaBreadcrumbs.length > 0 ? mediatecaBreadcrumbs.map((item) => item.titulo).join(' / ') : 'Raíz de la mediateca'}
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Título</label>
                 <input
@@ -945,27 +1345,85 @@ export default function CursoDetalle() {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Tipo</label>
-                <select
-                  value={mediatecaForm.tipo}
-                  onChange={(e) => setMediatecaForm({ ...mediatecaForm, tipo: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                >
-                  <option value="documento">Documento</option>
-                  <option value="video">Video</option>
-                  <option value="audio">Audio</option>
-                  <option value="enlace">Enlace</option>
-                </select>
-              </div>
+              {mediatecaCreateMode !== 'carpeta' && (
+                <>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Tipo</label>
+                    <select
+                      value={mediatecaForm.tipo}
+                      onChange={(e) => setMediatecaForm({ ...mediatecaForm, tipo: e.target.value })}
+                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    >
+                      <option value="documento">Documento</option>
+                      <option value="video">Video</option>
+                      <option value="audio">Audio</option>
+                      <option value="enlace">Enlace</option>
+                    </select>
+                  </div>
+
+                  {/* Upload mode toggle */}
+                  <div className="flex rounded-xl border border-gray-200 overflow-hidden text-sm">
+                    <button
+                      type="button"
+                      onClick={() => { setMediatecaUploadMode('url'); setMediatecaFile(null) }}
+                      className={`flex-1 py-2 font-medium transition ${mediatecaUploadMode === 'url' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                    >
+                      Usar URL
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMediatecaUploadMode('file')}
+                      className={`flex-1 py-2 font-medium transition flex items-center justify-center gap-2 ${mediatecaUploadMode === 'file' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                    >
+                      <Upload size={14} />
+                      Subir archivo
+                    </button>
+                  </div>
+
+                  {mediatecaUploadMode === 'url' ? (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">URL</label>
+                      <input
+                        type="text"
+                        placeholder="https://..."
+                        value={mediatecaForm.url}
+                        onChange={(e) => setMediatecaForm({ ...mediatecaForm, url: e.target.value })}
+                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      />
+                      {mediatecaEdit?.url && (
+                        <p className="mt-1 text-xs text-gray-400 truncate">Actual: {mediatecaEdit.url}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Archivo</label>
+                      <label className="flex flex-col items-center justify-center gap-2 w-full border-2 border-dashed border-gray-200 rounded-xl px-4 py-6 text-sm text-gray-500 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition">
+                        <Upload size={24} className="text-gray-400" />
+                        {mediatecaFile ? (
+                          <span className="font-medium text-blue-700">{mediatecaFile.name}</span>
+                        ) : mediatecaEdit?.archivo ? (
+                          <span>Archivo actual subido · haz clic para reemplazar</span>
+                        ) : (
+                          <span>Haz clic para seleccionar un archivo</span>
+                        )}
+                        <input
+                          type="file"
+                          className="hidden"
+                          onChange={(e) => setMediatecaFile(e.target.files[0] || null)}
+                        />
+                      </label>
+                    </div>
+                  )}
+                </>
+              )}
 
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">URL</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Orden</label>
                 <input
-                  type="text"
-                  placeholder="URL del archivo o enlace"
-                  value={mediatecaForm.url}
-                  onChange={(e) => setMediatecaForm({ ...mediatecaForm, url: e.target.value })}
+                  type="number"
+                  placeholder="Orden"
+                  value={mediatecaForm.orden}
+                  onChange={(e) => setMediatecaForm({ ...mediatecaForm, orden: parseInt(e.target.value) || 0 })}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                 />
               </div>
@@ -982,7 +1440,12 @@ export default function CursoDetalle() {
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setMediatecaModalOpen(false)}
+                  onClick={() => {
+                    setMediatecaModalOpen(false)
+                    setMediatecaEdit(null)
+                    setMediatecaFile(null)
+                    setMediatecaForm(initialMediatecaForm)
+                  }}
                   className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 text-gray-700 text-sm font-medium"
                 >
                   Cancelar
@@ -991,7 +1454,11 @@ export default function CursoDetalle() {
                   type="submit"
                   className="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold"
                 >
-                  Crear Recurso
+                  {mediatecaEdit
+                    ? 'Guardar cambios'
+                    : mediatecaCreateMode === 'carpeta'
+                      ? 'Crear Carpeta'
+                      : 'Crear Archivo'}
                 </button>
               </div>
             </form>
