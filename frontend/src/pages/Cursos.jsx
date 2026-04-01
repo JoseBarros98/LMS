@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { BookOpen, Clock3, Edit, Filter, Lock, Plus, Presentation, Sparkles, Trash2, UserPlus } from 'lucide-react'
 import Layout from '../components/Layout'
 import CursoModal from '../components/CursoModal'
@@ -60,6 +61,7 @@ const extractApiError = (error, fallback) => {
 }
 
 export default function Cursos() {
+  const navigate = useNavigate()
   const { user } = useAuth()
   const [cursos, setCursos] = useState([])
   const [rutas, setRutas] = useState([])
@@ -716,6 +718,12 @@ export default function Cursos() {
                         {isAdmin ? (
                           <div className="flex items-center gap-2">
                             <button
+                              onClick={() => navigate(`/courses/${curso.id}`)}
+                              className="px-2.5 py-1.5 rounded-lg text-xs bg-gray-900 text-white hover:bg-gray-800 transition inline-flex items-center gap-1"
+                            >
+                              <BookOpen size={12} /> Ver detalle
+                            </button>
+                            <button
                               onClick={() => openEdit(curso)}
                               className="px-2.5 py-1.5 rounded-lg text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 transition inline-flex items-center gap-1"
                             >
@@ -730,10 +738,15 @@ export default function Cursos() {
                           </div>
                         ) : (
                           <button
+                            onClick={() => {
+                              if (curso.estado !== 'bloqueado') {
+                                navigate(`/courses/${curso.id}`)
+                              }
+                            }}
                             className={`px-2.5 py-1.5 rounded-lg text-xs inline-flex items-center gap-1 ${
                               curso.estado === 'bloqueado'
                                 ? 'bg-gray-100 text-gray-600 cursor-not-allowed'
-                                : 'bg-blue-100 text-blue-700'
+                                : 'bg-blue-100 text-blue-700 hover:bg-blue-200 transition'
                             }`}
                             disabled={curso.estado === 'bloqueado'}
                           >

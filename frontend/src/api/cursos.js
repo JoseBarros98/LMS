@@ -66,4 +66,52 @@ export const cursosApi = {
   updateMatriculaCurso: (id, data) => api.patch(`/matriculas-curso/${id}/`, sanitizePayload(data)),
 
   deleteMatriculaCurso: (id) => api.delete(`/matriculas-curso/${id}/`),
+
+  getCursoDetalle: async (id) => {
+    const response = await api.get(`/cursos/${id}/`)
+    return response.data
+  },
+
+  getSecciones: async (cursoId) => {
+    const response = await api.get('/secciones/', { params: { curso_id: cursoId } })
+    return response.data
+  },
+
+  getLecciones: async (seccionId) => {
+    const response = await api.get('/lecciones/', { params: { seccion_id: seccionId } })
+    return response.data
+  },
+
+  getProgreso: async (cursoId) => {
+    const response = await api.get('/progreso-leccion/', { params: { curso_id: cursoId } })
+    return response.data
+  },
+
+  updateProgreso: (leccionId, data) => api.post(`/progreso-leccion/`, { leccion: leccionId, ...data }),
+
+  getComentarios: async (cursoId) => {
+    const response = await api.get('/comentarios-curso/', { params: { curso_id: cursoId } })
+    return response.data
+  },
+
+  createComentario: (data) => api.post('/comentarios-curso/', data),
+
+  deleteComentario: (id) => api.delete(`/comentarios-curso/${id}/`),
+
+  getMediateca: async (cursoId) => {
+    const response = await api.get('/mediateca-item/', { params: { curso_id: cursoId } })
+    return response.data
+  },
+
+  createMediatecaItem: (data) => api.post('/mediateca-item/', data),
+
+  deleteMediatecaItem: (id) => api.delete(`/mediateca-item/${id}/`),
+
+  createSeccion: (data) => api.post('/secciones/', data),
+
+  createLeccion: (data) => api.post('/lecciones/', data),
+
+  updateLeccion: (id, data) => api.patch(`/lecciones/${id}/`, data),
+
+  deleteLeccion: (id) => api.delete(`/lecciones/${id}/`),
 }

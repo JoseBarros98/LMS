@@ -1,6 +1,16 @@
 from rest_framework import serializers
 
-from .models import Curso, MatriculaCurso, MatriculaRuta, Ruta
+from .models import (
+    ComentarioCurso,
+    Curso,
+    Leccion,
+    MatriculaCurso,
+    MatriculaRuta,
+    MediatecaItem,
+    ProgresoLeccion,
+    Ruta,
+    Seccion,
+)
 
 
 class RutaSerializer(serializers.ModelSerializer):
@@ -67,6 +77,186 @@ class CursoSerializer(serializers.ModelSerializer):
             )
 
         return attrs
+
+
+class ComentarioCursoSerializer(serializers.ModelSerializer):
+    user_nombre = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ComentarioCurso
+        fields = [
+            'id',
+            'curso',
+            'user',
+            'user_nombre',
+            'contenido',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'user', 'user_nombre', 'created_at', 'updated_at']
+
+    def get_user_nombre(self, obj):
+        full_name = ' '.join(
+            filter(
+                None,
+                [obj.user.name, obj.user.paternal_surname, obj.user.maternal_surname],
+            )
+        ).strip()
+        return full_name or obj.user.email
+
+
+class ProgresoLeccionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProgresoLeccion
+        fields = [
+            'id',
+            'user',
+            'leccion',
+            'porcentaje',
+            'completada',
+            'ultimo_acceso',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['id', 'user', 'ultimo_acceso', 'created_at', 'updated_at']
+
+
+class LeccionDetalleSerializer(serializers.ModelSerializer):
+    progreso = serializers.SerializerMethodField()
+    seccion = serializers.PrimaryKeyRelatedField(queryset=Seccion.objects.all(), write_only=True)
+
+    class Meta:
+        model = Leccion
+        fields = [
+            'id',
+            'seccion',
+            'titulo',
+            'descripcion',
+            'video_url',
+            'duracion_min',
+            'orden',
+            'publicado',
+            'progreso',
+        ]
+
+    def get_progreso(self, obj):
+        progress_map = self.context.get('progress_map', {})
+        progress = progress_map.get(str(obj.id))
+
+        if not progress:
+            return {
+                'porcentaje': 0,
+                'completada': False,
+            }
+
+        return {
+            'porcentaje': progress.porcentaje,
+            'completada': progress.completada,
+        }
+
+
+class SeccionDetalleSerializer(serializers.ModelSerializer):
+    lecciones = serializers.SerializerMethodField()
+    progreso = serializers.SerializerMethodField()
+    curso = serializers.PrimaryKeyRelatedField(queryset=Curso.objects.all(), write_only=True)
+
+    class Meta:
+        model = Seccion
+        fields = [
+            'id',
+            'curso',
+            'titulo',
+            'descripcion',
+            'orden',
+            'progreso',
+            'lecciones',
+        ]
+
+    def get_lecciones(self, obj):
+        lessons = [
+            leccion for leccion in obj.lecciones.all()
+            if leccion.publicado or self.context.get('is_admin')
+        ]
+        return LeccionDetalleSerializer(lessons, many=True, context=self.context).data
+
+    def get_progreso(self, obj):
+        lessons = [
+            leccion for leccion in obj.lecciones.all()
+            if leccion.publicado or self.context.get('is_admin')
+        ]
+        if not lessons:
+            return 0
+
+        progress_map = self.context.get('progress_map', {})
+        total = sum((progress_map.get(str(leccion.id)).porcentaje if progress_map.get(str(leccion.id)) else 0) for leccion in lessons)
+        return round(total / len(lessons))
+
+
+class MediatecaItemSerializer(serializers.ModelSerializer):
+    tipo_label = serializers.CharField(source='get_tipo_display', read_only=True)
+    curso = serializers.PrimaryKeyRelatedField(queryset=Curso.objects.all(), write_only=True)
+
+    class Meta:
+        model = MediatecaItem
+        fields = [
+            'id',
+            'curso',
+            'titulo',
+            'descripcion',
+            'tipo',
+            'tipo_label',
+            'url',
+            'orden',
+            'publicado',
+        ]
+
+
+class CursoDetalleSerializer(CursoSerializer):
+    secciones = serializers.SerializerMethodField()
+    comentarios = serializers.SerializerMethodField()
+    mediateca = serializers.SerializerMethodField()
+    progreso_total = serializers.SerializerMethodField()
+    total_completadas = serializers.SerializerMethodField()
+
+    class Meta(CursoSerializer.Meta):
+        fields = CursoSerializer.Meta.fields + [
+            'secciones',
+            'comentarios',
+            'mediateca',
+            'progreso_total',
+            'total_completadas',
+        ]
+
+    def get_secciones(self, obj):
+        return SeccionDetalleSerializer(obj.secciones.all(), many=True, context=self.context).data
+
+    def get_comentarios(self, obj):
+        queryset = obj.comentarios.select_related('user').all()
+        return ComentarioCursoSerializer(queryset, many=True, context=self.context).data
+
+    def get_mediateca(self, obj):
+        queryset = obj.mediateca_items.all()
+        if not self.context.get('is_admin'):
+            queryset = queryset.filter(publicado=True)
+        return MediatecaItemSerializer(queryset, many=True, context=self.context).data
+
+    def get_progreso_total(self, obj):
+        lessons = []
+        for seccion in obj.secciones.all():
+            for leccion in seccion.lecciones.all():
+                if leccion.publicado or self.context.get('is_admin'):
+                    lessons.append(leccion)
+
+        if not lessons:
+            return 0
+
+        progress_map = self.context.get('progress_map', {})
+        total = sum((progress_map.get(str(leccion.id)).porcentaje if progress_map.get(str(leccion.id)) else 0) for leccion in lessons)
+        return round(total / len(lessons))
+
+    def get_total_completadas(self, obj):
+        progress_map = self.context.get('progress_map', {})
+        return sum(1 for progress in progress_map.values() if progress.completada)
 
 
 class MatriculaRutaSerializer(serializers.ModelSerializer):

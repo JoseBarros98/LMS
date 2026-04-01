@@ -2,6 +2,7 @@ import uuid
 
 from django.db import models
 from django.conf import settings
+from django.db.models import Sum
 from django.utils.text import slugify
 
 
@@ -94,10 +95,169 @@ class Curso(models.Model):
     def __str__(self):
         return self.titulo
 
+    def refresh_metrics(self):
+        lessons = Leccion.objects.filter(seccion__curso=self)
+        totals = lessons.aggregate(
+            total_lecciones=models.Count('id'),
+            duracion_total_min=Sum('duracion_min'),
+        )
+        self.total_lecciones = totals['total_lecciones'] or 0
+        self.duracion_total_min = totals['duracion_total_min'] or 0
+
     def save(self, *args, **kwargs):
         if not self.slug and self.titulo:
             self.slug = slugify(self.titulo)
         super().save(*args, **kwargs)
+
+
+class Seccion(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    curso = models.ForeignKey(Curso, on_delete=models.CASCADE, related_name='secciones')
+    titulo = models.CharField(max_length=250)
+    descripcion = models.TextField(blank=True, null=True)
+    orden = models.SmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Seccion'
+        verbose_name_plural = 'Secciones'
+        ordering = ['orden', 'titulo']
+        indexes = [
+            models.Index(fields=['curso', 'orden']),
+        ]
+
+    def __str__(self):
+        return f'{self.curso.titulo} - {self.titulo}'
+
+
+class Leccion(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    seccion = models.ForeignKey(Seccion, on_delete=models.CASCADE, related_name='lecciones')
+    titulo = models.CharField(max_length=250)
+    descripcion = models.TextField(blank=True, null=True)
+    video_url = models.CharField(max_length=500)
+    duracion_min = models.PositiveIntegerField(default=0)
+    orden = models.SmallIntegerField(default=0)
+    publicado = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Leccion'
+        verbose_name_plural = 'Lecciones'
+        ordering = ['orden', 'titulo']
+        indexes = [
+            models.Index(fields=['seccion', 'orden']),
+            models.Index(fields=['publicado']),
+        ]
+
+    def __str__(self):
+        return f'{self.seccion.titulo} - {self.titulo}'
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        curso = self.seccion.curso
+        curso.refresh_metrics()
+        curso.save(update_fields=['total_lecciones', 'duracion_total_min', 'updated_at'])
+
+    def delete(self, *args, **kwargs):
+        curso = self.seccion.curso
+        super().delete(*args, **kwargs)
+        curso.refresh_metrics()
+        curso.save(update_fields=['total_lecciones', 'duracion_total_min', 'updated_at'])
+
+
+class ProgresoLeccion(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='progresos_leccion')
+    leccion = models.ForeignKey(Leccion, on_delete=models.CASCADE, related_name='progresos')
+    porcentaje = models.PositiveSmallIntegerField(default=0)
+    completada = models.BooleanField(default=False)
+    ultimo_acceso = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Progreso de leccion'
+        verbose_name_plural = 'Progresos de leccion'
+        ordering = ['-ultimo_acceso']
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'leccion'], name='unique_progreso_user_leccion'),
+            models.CheckConstraint(
+                condition=models.Q(porcentaje__gte=0) & models.Q(porcentaje__lte=100),
+                name='progreso_leccion_porcentaje_valido',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['user']),
+            models.Index(fields=['leccion']),
+        ]
+
+    def __str__(self):
+        return f'{self.user_id} - {self.leccion.titulo} ({self.porcentaje}%)'
+
+    def save(self, *args, **kwargs):
+        self.porcentaje = min(max(self.porcentaje or 0, 0), 100)
+        self.completada = self.completada or self.porcentaje == 100
+        super().save(*args, **kwargs)
+
+
+class ComentarioCurso(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    curso = models.ForeignKey(Curso, on_delete=models.CASCADE, related_name='comentarios')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='comentarios_curso')
+    contenido = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Comentario de curso'
+        verbose_name_plural = 'Comentarios de curso'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['curso', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f'{self.user} - {self.curso.titulo}'
+
+
+class MediatecaItem(models.Model):
+    TIPO_VIDEO = 'video'
+    TIPO_AUDIO = 'audio'
+    TIPO_DOCUMENTO = 'documento'
+    TIPO_ENLACE = 'enlace'
+
+    TIPO_CHOICES = [
+        (TIPO_VIDEO, 'Video'),
+        (TIPO_AUDIO, 'Audio'),
+        (TIPO_DOCUMENTO, 'Documento'),
+        (TIPO_ENLACE, 'Enlace'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    curso = models.ForeignKey(Curso, on_delete=models.CASCADE, related_name='mediateca_items')
+    titulo = models.CharField(max_length=250)
+    descripcion = models.TextField(blank=True, null=True)
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default=TIPO_DOCUMENTO)
+    url = models.CharField(max_length=500)
+    orden = models.SmallIntegerField(default=0)
+    publicado = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Item de mediateca'
+        verbose_name_plural = 'Items de mediateca'
+        ordering = ['orden', 'titulo']
+        indexes = [
+            models.Index(fields=['curso', 'orden']),
+            models.Index(fields=['publicado']),
+        ]
+
+    def __str__(self):
+        return f'{self.curso.titulo} - {self.titulo}'
 
 
 class MatriculaRuta(models.Model):
