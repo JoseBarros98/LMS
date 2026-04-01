@@ -338,19 +338,11 @@ export default function CursoDetalle() {
   }, [mediatecaVisibleItems])
 
   useEffect(() => {
-    if (leccionesPublicadas.length === 0) {
-      setSelectedLeccion(null)
-      return
-    }
-
-    if (!selectedLeccion) {
-      setSelectedLeccion(leccionesPublicadas[0])
-      return
-    }
+    if (!selectedLeccion) return
 
     const stillExists = leccionesPublicadas.some((leccion) => leccion.id === selectedLeccion.id)
     if (!stillExists) {
-      setSelectedLeccion(leccionesPublicadas[0])
+      setSelectedLeccion(null)
     }
   }, [leccionesPublicadas, selectedLeccion])
 
