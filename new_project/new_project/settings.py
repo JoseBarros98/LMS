@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'core',
     'tickets',
+    'cursos',
 ]
 
 MIDDLEWARE = [

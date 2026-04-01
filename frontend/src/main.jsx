@@ -11,6 +11,7 @@ import Roles from './pages/Roles'
 import Configuracion from './pages/Configuracion'
 import Tickets from './pages/Tickets'
 import Categorias from './pages/Categorias'
+import Cursos from './pages/Cursos'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -54,6 +55,12 @@ createRoot(document.getElementById('root')).render(
           <Route path="/categorias" element={
             <PrivateRoute>
               <Categorias />
+            </PrivateRoute>
+          } />
+
+          <Route path="/courses" element={
+            <PrivateRoute>
+              <Cursos />
             </PrivateRoute>
           } />
         </Routes>

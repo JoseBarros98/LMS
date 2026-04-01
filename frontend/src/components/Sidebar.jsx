@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
     LayoutDashboard, Calendar, BookOpen, Monitor, FolderOpen, Layers,
@@ -17,7 +16,7 @@ const menu = [
     {
         section: 'ACADEMIA',
         items: [
-            { label: 'Mis cursos', icon: BookOpen, path: '/courses' },
+            { label: 'Mis Cursos', icon: BookOpen, path: '/courses' },
             { label: 'Simuladores', icon: Monitor, path: '/simuladores' },
             { label: 'Recursos', icon: FolderOpen, path: '/recursos' },
         ]
