@@ -81,6 +81,9 @@ class CursoSerializer(serializers.ModelSerializer):
 
 class ComentarioCursoSerializer(serializers.ModelSerializer):
     user_nombre = serializers.SerializerMethodField()
+    parent = serializers.PrimaryKeyRelatedField(queryset=ComentarioCurso.objects.all(), allow_null=True, required=False, write_only=True)
+    parent_id = serializers.UUIDField(read_only=True)
+    respuestas = serializers.SerializerMethodField()
 
     class Meta:
         model = ComentarioCurso
@@ -89,7 +92,10 @@ class ComentarioCursoSerializer(serializers.ModelSerializer):
             'curso',
             'user',
             'user_nombre',
+            'parent',
+            'parent_id',
             'contenido',
+            'respuestas',
             'created_at',
             'updated_at',
         ]
@@ -103,6 +109,22 @@ class ComentarioCursoSerializer(serializers.ModelSerializer):
             )
         ).strip()
         return full_name or obj.user.email
+
+    def get_respuestas(self, obj):
+        respuestas = obj.respuestas.select_related('user').all().order_by('created_at')
+        return ComentarioCursoSerializer(respuestas, many=True, context=self.context).data
+
+    def validate(self, attrs):
+        curso = attrs.get('curso')
+        parent = attrs.get('parent')
+
+        if self.instance and curso is None:
+            curso = self.instance.curso
+
+        if parent and curso and parent.curso_id != curso.id:
+            raise serializers.ValidationError({'parent': 'La respuesta debe pertenecer al mismo curso.'})
+
+        return attrs
 
 
 class ProgresoLeccionSerializer(serializers.ModelSerializer):

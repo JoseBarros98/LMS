@@ -325,11 +325,14 @@ class ComentarioCursoViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        queryset = ComentarioCurso.objects.select_related('user', 'curso').all()
+        queryset = ComentarioCurso.objects.select_related('user', 'curso').prefetch_related('respuestas__user').all()
         curso_id = self.request.query_params.get('curso_id')
 
         if curso_id:
             queryset = queryset.filter(curso_id=curso_id)
+
+        if self.action == 'list':
+            queryset = queryset.filter(parent__isnull=True)
 
         return queryset.order_by('-created_at')
 
@@ -338,12 +341,17 @@ class ComentarioCursoViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         curso = serializer.validated_data['curso']
+        parent = serializer.validated_data.get('parent')
         if not can_access_course(request.user, curso):
             return Response({'detail': 'No tienes acceso a este curso.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if parent and parent.curso_id != curso.id:
+            return Response({'detail': 'La respuesta debe pertenecer al mismo curso.'}, status=status.HTTP_400_BAD_REQUEST)
 
         comentario = ComentarioCurso.objects.create(
             curso=curso,
             user=request.user,
+            parent=parent,
             contenido=serializer.validated_data['contenido'],
         )
 

@@ -174,6 +174,8 @@ export default function CursoDetalle() {
   const [activeTab, setActiveTab] = useState('curso')
   const [comentarioText, setComentarioText] = useState('')
   const [enviandoComentario, setEnviandoComentario] = useState(false)
+  const [replyDrafts, setReplyDrafts] = useState({})
+  const [replyingToId, setReplyingToId] = useState(null)
   const [selectedLeccion, setSelectedLeccion] = useState(null)
 
   // Admin states
@@ -224,20 +226,32 @@ export default function CursoDetalle() {
     loadData()
   }, [loadData])
 
-  const handleComentario = async (e) => {
+  const handleComentario = async (e, parentId = null) => {
     e.preventDefault()
-    if (!comentarioText.trim()) return
+
+    const content = parentId ? (replyDrafts[parentId] || '').trim() : comentarioText.trim()
+    if (!content) return
 
     try {
       setEnviandoComentario(true)
-      await cursosApi.createComentario({
+      const payload = {
         curso: id,
-        contenido: comentarioText,
-      })
-      setComentarioText('')
+        contenido: content,
+      }
+      if (parentId) {
+        payload.parent = parentId
+      }
+      await cursosApi.createComentario(payload)
+
+      if (parentId) {
+        setReplyDrafts((previous) => ({ ...previous, [parentId]: '' }))
+        setReplyingToId(null)
+      } else {
+        setComentarioText('')
+      }
       await loadData()
     } catch {
-      alert('No se pudo enviar el comentario.')
+      alert('No se pudo enviar el comentario o la respuesta.')
     } finally {
       setEnviandoComentario(false)
     }
@@ -525,6 +539,81 @@ export default function CursoDetalle() {
   const currentVideoUrl = selectedLeccion?.video_url || curso?.video_intro_url || ''
   const currentYoutubeEmbedUrl = useMemo(() => getYoutubeEmbedUrl(currentVideoUrl), [currentVideoUrl])
 
+  const renderComentario = (com, depth = 0) => {
+    const replies = Array.isArray(com.respuestas) ? com.respuestas : []
+    const canDelete = isAdmin || user?.user_id === com.user
+    const isReplyBoxOpen = replyingToId === com.id
+    const replyValue = replyDrafts[com.id] || ''
+
+    return (
+      <div key={com.id} className={`${depth > 0 ? 'ml-6 mt-3 border-l-2 border-gray-100 pl-3' : ''}`}>
+        <div className="border border-gray-200 rounded-lg p-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-800">{com.user_nombre || com.user_email}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{new Date(com.created_at).toLocaleDateString()}</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  setReplyingToId(isReplyBoxOpen ? null : com.id)
+                }}
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Responder
+              </button>
+              {canDelete && (
+                <button
+                  onClick={() => handleEliminarComentario(com.id)}
+                  className="text-red-600 hover:text-red-700 transition"
+                >
+                  <Trash2 size={16} />
+                </button>
+              )}
+            </div>
+          </div>
+
+          <p className="text-sm text-gray-700 mt-2">{com.contenido}</p>
+
+          {isReplyBoxOpen && (
+            <form onSubmit={(e) => handleComentario(e, com.id)} className="mt-3 space-y-2">
+              <textarea
+                value={replyValue}
+                onChange={(e) => setReplyDrafts((previous) => ({ ...previous, [com.id]: e.target.value }))}
+                placeholder="Escribe tu respuesta..."
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm resize-none"
+                rows="2"
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={enviandoComentario || !replyValue.trim()}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                >
+                  <Send size={14} />
+                  Responder
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReplyingToId(null)}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+
+        {replies.length > 0 && (
+          <div className="mt-2">
+            {replies.map((reply) => renderComentario(reply, depth + 1))}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   if (loading) {
     return (
       <Layout>
@@ -704,25 +793,7 @@ export default function CursoDetalle() {
                   {comentarios.length === 0 ? (
                     <p className="text-sm text-gray-500 text-center py-4">Sin comentarios aún.</p>
                   ) : (
-                    comentarios.map((com) => (
-                      <div key={com.id} className="border border-gray-200 rounded-lg p-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-800">{com.user_nombre || com.user_email}</p>
-                            <p className="text-xs text-gray-500 mt-0.5">{new Date(com.created_at).toLocaleDateString()}</p>
-                          </div>
-                          {user?.user_id === com.user && (
-                            <button
-                              onClick={() => handleEliminarComentario(com.id)}
-                              className="text-red-600 hover:text-red-700 transition"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-700 mt-2">{com.contenido}</p>
-                      </div>
-                    ))
+                    comentarios.map((com) => renderComentario(com))
                   )}
                 </div>
               </div>

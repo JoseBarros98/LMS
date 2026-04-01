@@ -207,6 +207,7 @@ class ComentarioCurso(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     curso = models.ForeignKey(Curso, on_delete=models.CASCADE, related_name='comentarios')
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='comentarios_curso')
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, related_name='respuestas', blank=True, null=True)
     contenido = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
