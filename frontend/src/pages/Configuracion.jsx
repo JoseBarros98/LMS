@@ -1,10 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+﻿import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { updateUser } from '../api/users'
 import { notificationsApi } from '../api/notifications'
 import Layout from '../components/Layout'
-import { User, Save, Key, Shield, Lock, Computer, Bell, Check, CheckCheck, BellOff, Ticket, RefreshCw, Eye } from 'lucide-react'
+import { User, Save, Key, Shield, Lock, Computer, Bell, Check, CheckCheck, BellOff, Ticket, RefreshCw, Eye, Map, BookOpen, Calendar, BadgeCheck } from 'lucide-react'
+import { cursosApi } from '../api/cursos'
 
 export default function Configuracion() {
   const { user, updateUser: updateAuthUser } = useAuth()
@@ -28,11 +29,17 @@ export default function Configuracion() {
   const [activeTab, setActiveTab] = useState('perfil')
   const fileRef = useRef(null)
 
-  // — Notificaciones —
+  // â€” Notificaciones â€”
   const [notifications, setNotifications] = useState([])
   const [notifLoading, setNotifLoading] = useState(false)
   const [notifFilter, setNotifFilter] = useState('all') // 'all' | 'unread' | 'read'
   const [markingAll, setMarkingAll] = useState(false)
+
+  // â€” MatrÃ­culas â€”
+  const [matriculasRuta, setMatriculasRuta] = useState([])
+  const [matriculasCurso, setMatriculasCurso] = useState([])
+  const [matriculasLoading, setMatriculasLoading] = useState(false)
+  const [matriculasSubTab, setMatriculasSubTab] = useState('ruta')
 
   useEffect(() => {
     if (user) {
@@ -129,7 +136,7 @@ export default function Configuracion() {
     }
   }
 
-  // ——— Lógica de notificaciones ———
+  // ――― Lógica de notificaciones ―――
   const formatRelativeDate = (value) => {
     if (!value) return ''
     const date = new Date(value)
@@ -157,6 +164,29 @@ export default function Configuracion() {
       loadNotifications()
     }
   }, [activeTab, loadNotifications])
+
+  const loadMatriculas = useCallback(async () => {
+    setMatriculasLoading(true)
+    try {
+      const [ruta, curso] = await Promise.all([
+        cursosApi.getMatriculasRuta(),
+        cursosApi.getMatriculasCurso(),
+      ])
+      setMatriculasRuta(Array.isArray(ruta) ? ruta : [])
+      setMatriculasCurso(Array.isArray(curso) ? curso : [])
+    } catch {
+      setMatriculasRuta([])
+      setMatriculasCurso([])
+    } finally {
+      setMatriculasLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeTab === 'mis_matriculas') {
+      loadMatriculas()
+    }
+  }, [activeTab, loadMatriculas])
 
   const handleMarkAsRead = async (id) => {
     try {
@@ -226,7 +256,7 @@ export default function Configuracion() {
     navigate(`/tickets?ticketId=${notification.ticket_id}`)
   }
 
-  // ——————————————————————————————
+  // â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
 
   const handleSubmitPassword = async (e) => {
     e.preventDefault()
@@ -579,6 +609,157 @@ export default function Configuracion() {
               </div>
             )}
 
+            {activeTab === 'mis_matriculas' && (
+              <div className="space-y-4">
+                              {/* Header */}
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h2 className="text-base font-bold text-gray-800">Mis Matrículas</h2>
+                                  <p className="text-sm text-gray-400">
+                                    Total: {matriculasRuta.length + matriculasCurso.length} matrícula{matriculasRuta.length + matriculasCurso.length !== 1 ? 's' : ''}
+                                  </p>
+                                </div>
+                                <button
+                                  onClick={loadMatriculas}
+                                  disabled={matriculasLoading}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-gray-600 bg-gray-100 hover:bg-gray-200 transition disabled:opacity-50"
+                                >
+                                  <RefreshCw size={13} className={matriculasLoading ? 'animate-spin' : ''} />
+                                  Actualizar
+                                </button>
+                              </div>
+
+                              {/* Sub-tabs */}
+                              <div className="flex border-b border-gray-200">
+                                <button
+                                  onClick={() => setMatriculasSubTab('ruta')}
+                                  className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-px ${
+                                    matriculasSubTab === 'ruta'
+                                      ? 'border-blue-500 text-blue-600'
+                                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                                  }`}
+                                >
+                                  <Map size={14} />
+                                  Matrículas por Ruta
+                                  <span className="ml-1 px-1.5 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">{matriculasRuta.length}</span>
+                                </button>
+                                <button
+                                  onClick={() => setMatriculasSubTab('curso')}
+                                  className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-px ${
+                                    matriculasSubTab === 'curso'
+                                      ? 'border-blue-500 text-blue-600'
+                                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                                  }`}
+                                >
+                                  <BookOpen size={14} />
+                                  Matrículas por Curso
+                                  <span className="ml-1 px-1.5 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">{matriculasCurso.length}</span>
+                                </button>
+                              </div>
+
+                              {matriculasLoading ? (
+                                <div className="flex items-center justify-center py-12">
+                                  <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                                </div>
+                              ) : matriculasSubTab === 'ruta' ? (
+                                matriculasRuta.length === 0 ? (
+                                  <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+                                    <Map size={36} className="mb-3 opacity-40" />
+                                    <p className="text-sm">No tienes matrículas en ninguna ruta</p>
+                                  </div>
+                                ) : (
+                                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                    {matriculasRuta.map((m) => (
+                                      <div key={m.id} className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3 hover:shadow-md transition">
+                                        <div className="flex items-start gap-3">
+                                          <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
+                                            <Map size={16} className="text-violet-600" />
+                                          </div>
+                                          <div className="min-w-0">
+                                            <p className="text-sm font-semibold text-gray-800 leading-snug">{m.ruta_titulo || '—'}</p>
+                                            {m.codigo_acceso && (
+                                              <p className="text-xs text-gray-400 font-mono mt-0.5">{m.codigo_acceso}</p>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${m.activa ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                                            <BadgeCheck size={11} />
+                                            {m.activa ? 'Activa' : 'Inactiva'}
+                                          </span>
+                                        </div>
+                                        <div className="space-y-1.5 text-xs text-gray-500">
+                                          {m.fecha_inicio && (
+                                            <div className="flex items-center gap-1.5">
+                                              <Calendar size={12} className="text-gray-400" />
+                                              <span>Inicio: <span className="font-medium text-gray-700">{new Date(m.fecha_inicio).toLocaleDateString('es-BO', { day: 'numeric', month: 'short', year: 'numeric' })}</span></span>
+                                            </div>
+                                          )}
+                                          {m.fecha_fin && (
+                                            <div className="flex items-center gap-1.5">
+                                              <Calendar size={12} className="text-gray-400" />
+                                              <span>Fin: <span className="font-medium text-gray-700">{new Date(m.fecha_fin).toLocaleDateString('es-BO', { day: 'numeric', month: 'short', year: 'numeric' })}</span></span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )
+                              ) : (
+                                matriculasCurso.length === 0 ? (
+                                  <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+                                    <BookOpen size={36} className="mb-3 opacity-40" />
+                                    <p className="text-sm">No tienes matrículas en ningún curso</p>
+                                  </div>
+                                ) : (
+                                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                                    {matriculasCurso.map((m) => (
+                                      <div key={m.id} className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3 hover:shadow-md transition">
+                                        <div className="flex items-start gap-3">
+                                          <div className="w-9 h-9 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+                                            <BookOpen size={16} className="text-blue-600" />
+                                          </div>
+                                          <div className="min-w-0">
+                                            <p className="text-sm font-semibold text-gray-800 leading-snug">{m.curso_titulo || '—'}</p>
+                                            {m.ruta_titulo && (
+                                              <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+                                                <Map size={10} /> {m.ruta_titulo}
+                                              </p>
+                                            )}
+                                            {m.codigo_acceso && (
+                                              <p className="text-xs text-gray-400 font-mono mt-0.5">{m.codigo_acceso}</p>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${m.activa ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
+                                            <BadgeCheck size={11} />
+                                            {m.activa ? 'Activa' : 'Inactiva'}
+                                          </span>
+                                        </div>
+                                        <div className="space-y-1.5 text-xs text-gray-500">
+                                          {m.fecha_inicio && (
+                                            <div className="flex items-center gap-1.5">
+                                              <Calendar size={12} className="text-gray-400" />
+                                              <span>Inicio: <span className="font-medium text-gray-700">{new Date(m.fecha_inicio).toLocaleDateString('es-BO', { day: 'numeric', month: 'short', year: 'numeric' })}</span></span>
+                                            </div>
+                                          )}
+                                          {m.fecha_fin && (
+                                            <div className="flex items-center gap-1.5">
+                                              <Calendar size={12} className="text-gray-400" />
+                                              <span>Fin: <span className="font-medium text-gray-700">{new Date(m.fecha_fin).toLocaleDateString('es-BO', { day: 'numeric', month: 'short', year: 'numeric' })}</span></span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )
+                              )}
+              </div>
+            )}
+
             {activeTab === 'notificaciones' && (
               <div className="space-y-4">
 
@@ -677,7 +858,7 @@ export default function Configuracion() {
                               key={notification.id}
                               className={`transition hover:bg-gray-50 ${!notification.is_read ? 'bg-blue-50/30' : 'bg-white'}`}
                             >
-                              {/* Título */}
+                              {/* TÃ­tulo */}
                               <td className="px-5 py-3.5">
                                 <div className="flex items-center gap-2.5">
                                   <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${notifTypeColor(notification.notification_type)}`}>
@@ -694,7 +875,7 @@ export default function Configuracion() {
                                 </div>
                               </td>
 
-                              {/* Prioridad (tipo de notificación) */}
+                              {/* Prioridad (tipo de notificaciÃ³n) */}
                               <td className="px-5 py-3.5">
                                 {notification.ticket_priority ? (
                                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${priorityBadge(notification.ticket_priority)}`}>
@@ -733,7 +914,7 @@ export default function Configuracion() {
                                     title="Marcar como leída"
                                   >
                                     <Check size={13} />
-                                    Marcar como leído
+                                    Marcar como leída
                                   </button>
                                   <button
                                     onClick={() => handleViewTicketDetail(notification)}
@@ -759,7 +940,7 @@ export default function Configuracion() {
             {activeTab === 'seguridad' && (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
-                {/* Card Izquierda: Formulario de contraseña */}
+                {/* Card Izquierda: Formulario de contraseÃ±a */}
                 <div className="lg:col-span-2">
                   <div className="bg-gray-50 rounded-2xl border border-gray-200 overflow-hidden">
                     <div className="border-b border-gray-200 px-6 py-4 bg-white">
