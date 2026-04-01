@@ -1002,9 +1002,9 @@ export default function CursoDetalle() {
                             )}
                           </div>
 
-                          <div className="flex items-center justify-between gap-3 text-xs text-gray-500">
+                          <div className={`flex items-center gap-3 text-xs text-gray-500 ${isAdmin ? 'justify-between' : 'justify-start'}`}>
                             <span>{isFolder ? `${item.children_count || 0} elementos` : badge}</span>
-                            <span>Orden #{item.orden || 0}</span>
+                            {isAdmin && <span>Orden #{item.orden || 0}</span>}
                           </div>
 
                           <div className="inline-flex items-center gap-2 text-sm font-medium text-blue-700">

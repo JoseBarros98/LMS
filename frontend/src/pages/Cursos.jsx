@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, Clock3, Edit, Filter, Lock, Plus, Presentation, Sparkles, Trash2, UserPlus } from 'lucide-react'
+import { ArrowRight, BookOpen, Clock3, Edit, Filter, Lock, Plus, Presentation, Sparkles, Trash2, UserPlus } from 'lucide-react'
 import Layout from '../components/Layout'
 import CursoModal from '../components/CursoModal'
 import RutaModal from '../components/RutaModal'
@@ -662,9 +662,9 @@ export default function Cursos() {
                 {cursosRuta.map((curso) => (
                   <article
                     key={curso.id}
-                    className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-lg transition"
+                    className="bg-white rounded-2xl border border-slate-200 overflow-hidden hover:shadow-lg transition"
                   >
-                    <div className="relative h-40 bg-gray-100">
+                    <div className="relative h-44 bg-gray-100">
                       {curso.imagen_portada_url ? (
                         <img
                           src={curso.imagen_portada_url}
@@ -677,6 +677,8 @@ export default function Cursos() {
                         </div>
                       )}
 
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent" />
+
                       <span className={`absolute top-3 left-3 px-2 py-1 rounded-full text-xs font-medium ${nivelBadge[curso.nivel] || nivelBadge.avanzado}`}>
                         {curso.nivel_label || curso.nivel}
                       </span>
@@ -686,9 +688,12 @@ export default function Cursos() {
                     </div>
 
                     <div className="p-4 space-y-3">
-                      <div className="space-y-1">
-                        <h3 className="font-semibold text-gray-800 line-clamp-2">{curso.titulo}</h3>
-                        <p className="text-sm text-gray-500 line-clamp-2">{curso.descripcion || 'Sin descripcion'}</p>
+                      <div className="space-y-2">
+                        <h3 className="font-extrabold text-slate-900 uppercase leading-tight">{curso.titulo}</h3>
+                        <p className="inline-flex items-center rounded-full bg-violet-100 text-violet-700 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide">
+                          <BookOpen size={11} className="mr-1" /> {curso.ruta_titulo || rutaTitle(curso.ruta)}
+                        </p>
+                        <p className="text-sm text-gray-500 line-clamp-2 border-t border-slate-100 pt-2">{curso.descripcion || 'Sin descripcion'}</p>
                       </div>
 
                       <div className="flex flex-wrap gap-2 text-xs">
@@ -710,12 +715,14 @@ export default function Cursos() {
                         )}
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <div className="text-xs text-gray-500">
-                          Orden #{curso.orden}
-                        </div>
-
+                      <div className={`flex items-center gap-2 ${isAdmin ? 'justify-between' : 'justify-end'}`}>
+                        {isAdmin && (
+                          <div className="text-xs text-gray-500">
+                            Orden #{curso.orden}
+                          </div>
+                        )}
                         {isAdmin ? (
+
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => navigate(`/courses/${curso.id}`)}
@@ -743,15 +750,15 @@ export default function Cursos() {
                                 navigate(`/courses/${curso.id}`)
                               }
                             }}
-                            className={`px-2.5 py-1.5 rounded-lg text-xs inline-flex items-center gap-1 ${
+                            className={`px-3 py-2 rounded-lg text-xs inline-flex items-center gap-1.5 font-semibold ${
                               curso.estado === 'bloqueado'
                                 ? 'bg-gray-100 text-gray-600 cursor-not-allowed'
-                                : 'bg-blue-100 text-blue-700 hover:bg-blue-200 transition'
+                                : 'bg-slate-900 text-white hover:bg-slate-800 transition'
                             }`}
                             disabled={curso.estado === 'bloqueado'}
                           >
-                            {curso.estado === 'bloqueado' ? <Lock size={12} /> : <BookOpen size={12} />}
-                            {curso.estado === 'bloqueado' ? 'Bloqueado' : 'Entrar'}
+                            {curso.estado === 'bloqueado' ? <Lock size={12} /> : <ArrowRight size={12} />}
+                            {curso.estado === 'bloqueado' ? 'Bloqueado' : 'Ingresar'}
                           </button>
                         )}
                       </div>

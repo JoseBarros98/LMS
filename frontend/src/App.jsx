@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BookOpen, Clock3, Lock, Sparkles } from 'lucide-react'
+import { ArrowRight, BookOpen, Clock3, Lock, Sparkles } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { cursosApi } from './api/cursos'
 import Layout from './components/Layout'
@@ -142,32 +142,37 @@ export default function App() {
                 return (
                   <article
                     key={curso.id}
-                    className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm hover:shadow-md transition"
+                    className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-lg transition"
                   >
-                    <div className="relative h-52 bg-gray-100">
+                    <div className="relative h-48 bg-gray-100">
                       <img src={portada} alt={curso.titulo} className="w-full h-full object-cover" />
-                      <div className="absolute top-4 left-4 flex flex-wrap gap-2 pr-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${nivelBadge[curso.nivel] || 'bg-gray-100 text-gray-700'}`}>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent" />
+                      <div className="absolute top-3 left-3 flex flex-wrap gap-2 pr-4">
+                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase backdrop-blur-sm ${nivelBadge[curso.nivel] || 'bg-gray-100 text-gray-700'}`}>
                           {curso.nivel_label || curso.nivel}
                         </span>
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase ${estadoBadge[curso.estado] || 'bg-gray-100 text-gray-700'}`}>
+                      </div>
+                      <div className="absolute top-3 right-3">
+                        <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase backdrop-blur-sm ${estadoBadge[curso.estado] || 'bg-gray-100 text-gray-700'}`}>
                           {curso.estado_label || curso.estado}
                         </span>
                       </div>
                     </div>
 
-                    <div className="p-5 space-y-4">
-                      <div>
-                        <p className="text-xs uppercase tracking-[0.18em] text-gray-400">
-                          {curso.ruta_titulo || 'Ruta academica'}
+                    <div className="p-5 space-y-3">
+                      <div className="space-y-2">
+                        <h3 className="text-2xl font-extrabold uppercase text-slate-900 leading-tight tracking-tight">
+                          {curso.titulo}
+                        </h3>
+                        <p className="inline-flex items-center rounded-full bg-violet-100 text-violet-700 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide">
+                          <BookOpen size={11} className="mr-1" /> {curso.ruta_titulo || 'Ruta academica'}
                         </p>
-                        <h3 className="mt-2 text-lg font-semibold text-gray-800 leading-snug">{curso.titulo}</h3>
-                        <p className="mt-2 text-sm text-gray-600 line-clamp-3">
+                        <p className="text-sm text-slate-600 line-clamp-2 border-t border-slate-100 pt-2">
                           {curso.descripcion || 'Este curso aun no tiene una descripcion visible.'}
                         </p>
                       </div>
 
-                      <div className="flex flex-wrap gap-3 text-sm text-gray-500">
+                      <div className="flex flex-wrap gap-3 text-sm text-slate-500">
                         <span className="inline-flex items-center gap-1.5">
                           <BookOpen size={16} />
                           {curso.total_lecciones || 0} lecciones
@@ -178,22 +183,18 @@ export default function App() {
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between gap-3 pt-1">
-                        <span className="text-xs text-gray-500">
-                          {curso.tiene_mediateca ? 'Incluye mediateca' : 'Sin mediateca'}
-                        </span>
-
+                      <div className="pt-1">
                         {isLocked ? (
-                          <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-100 text-gray-600 text-sm font-medium">
+                          <span className="w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl bg-gray-100 text-gray-600 text-sm font-semibold">
                             <Lock size={16} />
                             Bloqueado
                           </span>
                         ) : (
                           <Link
                             to={`/courses/${curso.id}`}
-                            className="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 transition"
+                            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 transition"
                           >
-                            Continuar
+                            Ingresar al Curso <ArrowRight size={16} />
                           </Link>
                         )}
                       </div>
