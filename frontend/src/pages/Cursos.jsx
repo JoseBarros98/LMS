@@ -5,6 +5,7 @@ import Layout from '../components/Layout'
 import CursoModal from '../components/CursoModal'
 import { cursosApi } from '../api/cursos'
 import { useAuth } from '../context/AuthContext'
+import { formatCurrencyBs, formatDuration } from '../utils/formatters'
 import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
 
 const estadoBadge = {
@@ -248,7 +249,10 @@ export default function Cursos() {
                           <Presentation size={12} /> {curso.total_lecciones} lecciones
                         </span>
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 text-gray-700">
-                          <Clock3 size={12} /> {curso.duracion_total_min} min
+                          <Clock3 size={12} /> {formatDuration(curso.duracion_total_min)}
+                        </span>
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-100 text-emerald-700 font-semibold">
+                          {formatCurrencyBs(curso.precio)}
                         </span>
                         {curso.tiene_mediateca && (
                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-100 text-blue-700">

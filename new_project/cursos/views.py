@@ -1,7 +1,8 @@
 from datetime import date
 
-from django.db.models import Q
+from django.db.models import Count, DecimalField, IntegerField, Q, Sum, Value
 from django.db import transaction
+from django.db.models.functions import Coalesce
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -83,12 +84,6 @@ def can_access_course(user, curso):
     if not curso.publicado:
         return False
 
-    if curso.fecha_disponible_desde and curso.fecha_disponible_desde > today:
-        return False
-
-    if curso.fecha_disponible_hasta and curso.fecha_disponible_hasta < today:
-        return False
-
     return True
 
 
@@ -130,7 +125,19 @@ def build_student_user_data(validated_data, role):
 
 
 class RutaViewSet(viewsets.ModelViewSet):
-    queryset = Ruta.objects.all().order_by('orden', 'titulo')
+    queryset = Ruta.objects.annotate(
+        total_cursos=Count('cursos', distinct=True),
+        precio_total=Coalesce(
+            Sum('cursos__precio'),
+            Value(0),
+            output_field=DecimalField(max_digits=12, decimal_places=2),
+        ),
+        duracion_total_min=Coalesce(
+            Sum('cursos__duracion_total_min'),
+            Value(0),
+            output_field=IntegerField(),
+        ),
+    ).order_by('orden', 'titulo')
     serializer_class = RutaSerializer
     permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
 
@@ -223,13 +230,7 @@ class CursoViewSet(viewsets.ModelViewSet):
                 | Q(ruta_id__in=matriculas_ruta.values_list('ruta_id', flat=True))
             )
 
-            queryset = queryset.filter(publicado=True).filter(
-                Q(fecha_disponible_desde__isnull=True)
-                | Q(fecha_disponible_desde__lte=today)
-            ).filter(
-                Q(fecha_disponible_hasta__isnull=True)
-                | Q(fecha_disponible_hasta__gte=today)
-            )
+            queryset = queryset.filter(publicado=True)
 
         return queryset.order_by('ruta__orden', 'ruta__titulo', 'orden', 'titulo').distinct()
 

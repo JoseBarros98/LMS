@@ -66,8 +66,7 @@ class Curso(models.Model):
     tiene_mediateca = models.BooleanField(default=False, verbose_name='Tiene mediateca')
     total_lecciones = models.SmallIntegerField(default=0, verbose_name='Total lecciones')
     duracion_total_min = models.IntegerField(default=0, verbose_name='Duracion total en minutos')
-    fecha_disponible_desde = models.DateField(blank=True, null=True, verbose_name='Fecha disponible desde')
-    fecha_disponible_hasta = models.DateField(blank=True, null=True, verbose_name='Fecha disponible hasta')
+    precio = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Precio')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado en')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado en')
 
@@ -80,17 +79,6 @@ class Curso(models.Model):
             models.Index(fields=['ruta', 'publicado']),
             models.Index(fields=['ruta', 'orden']),
             models.Index(fields=['estado']),
-            models.Index(fields=['fecha_disponible_desde']),
-        ]
-        constraints = [
-            models.CheckConstraint(
-                condition=(
-                    models.Q(fecha_disponible_hasta__isnull=True)
-                    | models.Q(fecha_disponible_desde__isnull=True)
-                    | models.Q(fecha_disponible_hasta__gte=models.F('fecha_disponible_desde'))
-                ),
-                name='curso_fechas_disponibles_validas',
-            ),
         ]
 
     def __str__(self):

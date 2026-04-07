@@ -24,6 +24,10 @@ def generate_enrollment_access_code(prefix='MAT'):
 
 
 class RutaSerializer(serializers.ModelSerializer):
+    total_cursos = serializers.IntegerField(read_only=True)
+    precio_total = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    duracion_total_min = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = Ruta
         fields = [
@@ -33,6 +37,9 @@ class RutaSerializer(serializers.ModelSerializer):
             'orden',
             'publicado',
             'slug',
+            'total_cursos',
+            'precio_total',
+            'duracion_total_min',
             'created_at',
             'updated_at',
         ]
@@ -67,8 +74,7 @@ class CursoSerializer(serializers.ModelSerializer):
             'tiene_mediateca',
             'total_lecciones',
             'duracion_total_min',
-            'fecha_disponible_desde',
-            'fecha_disponible_hasta',
+            'precio',
             'created_at',
             'updated_at',
         ]
@@ -83,22 +89,8 @@ class CursoSerializer(serializers.ModelSerializer):
         return None  # ignore old CharField - it stored non-image URLs
 
     def validate(self, attrs):
-        fecha_desde = attrs.get('fecha_disponible_desde')
-        fecha_hasta = attrs.get('fecha_disponible_hasta')
-
         if not self.instance and not attrs.get('imagen_portada'):
             raise serializers.ValidationError({'imagen_portada': 'Debes subir una imagen de portada.'})
-
-        if self.instance:
-            if fecha_desde is None:
-                fecha_desde = self.instance.fecha_disponible_desde
-            if fecha_hasta is None:
-                fecha_hasta = self.instance.fecha_disponible_hasta
-
-        if fecha_desde and fecha_hasta and fecha_hasta < fecha_desde:
-            raise serializers.ValidationError(
-                {'fecha_disponible_hasta': 'Debe ser mayor o igual que fecha_disponible_desde.'}
-            )
 
         return attrs
 

@@ -13,10 +13,7 @@ const defaultForm = {
   slug: '',
   video_intro_url: '',
   tiene_mediateca: false,
-  total_lecciones: 0,
-  duracion_total_min: 0,
-  fecha_disponible_desde: '',
-  fecha_disponible_hasta: '',
+  precio: 0,
 }
 
 export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed }) {
@@ -37,10 +34,7 @@ export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed }) {
       slug: cursoEdit.slug || '',
       video_intro_url: cursoEdit.video_intro_url || '',
       tiene_mediateca: Boolean(cursoEdit.tiene_mediateca),
-      total_lecciones: Number(cursoEdit.total_lecciones) || 0,
-      duracion_total_min: Number(cursoEdit.duracion_total_min) || 0,
-      fecha_disponible_desde: cursoEdit.fecha_disponible_desde || '',
-      fecha_disponible_hasta: cursoEdit.fecha_disponible_hasta || '',
+      precio: Number(cursoEdit.precio) || 0,
     }
   })
   const [portadaFile, setPortadaFile] = useState(null)
@@ -92,22 +86,12 @@ export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed }) {
       return
     }
 
-    if (
-      formData.fecha_disponible_desde &&
-      formData.fecha_disponible_hasta &&
-      formData.fecha_disponible_hasta < formData.fecha_disponible_desde
-    ) {
-      setError('La fecha de cierre no puede ser menor que la fecha de apertura.')
-      return
-    }
-
     try {
       await onSubmit({
         ...formData,
         _imagen_portada_file: portadaFile,
         orden: Number(formData.orden) || 0,
-        total_lecciones: Number(formData.total_lecciones) || 0,
-        duracion_total_min: Number(formData.duracion_total_min) || 0,
+        precio: Number(formData.precio) || 0,
       })
     } catch (submitError) {
       const apiError = submitError?.response?.data
@@ -117,7 +101,6 @@ export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed }) {
           : apiError?.detail ||
             apiError?.titulo?.[0] ||
             apiError?.slug?.[0] ||
-            apiError?.fecha_disponible_hasta?.[0] ||
             'No se pudo guardar el curso.'
 
       setError(message)
@@ -262,6 +245,19 @@ export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed }) {
             </div>
 
             <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Precio (Bs.)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                name="precio"
+                value={formData.precio}
+                onChange={handleChange}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </div>
+
+            <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Slug</label>
               <input
                 type="text"
@@ -273,51 +269,6 @@ export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed }) {
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Total lecciones</label>
-              <input
-                type="number"
-                min="0"
-                name="total_lecciones"
-                value={formData.total_lecciones}
-                onChange={handleChange}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Duracion total (min)</label>
-              <input
-                type="number"
-                min="0"
-                name="duracion_total_min"
-                value={formData.duracion_total_min}
-                onChange={handleChange}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Disponible desde</label>
-              <input
-                type="date"
-                name="fecha_disponible_desde"
-                value={formData.fecha_disponible_desde}
-                onChange={handleChange}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Disponible hasta</label>
-              <input
-                type="date"
-                name="fecha_disponible_hasta"
-                value={formData.fecha_disponible_hasta}
-                onChange={handleChange}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

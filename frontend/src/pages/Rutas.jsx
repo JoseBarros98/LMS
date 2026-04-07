@@ -1,38 +1,44 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Fragment, useCallback, useEffect, useState } from 'react'
 import { Edit, Plus, Sparkles, Trash2, UserPlus } from 'lucide-react'
 import Layout from '../components/Layout'
 import RutaModal from '../components/RutaModal'
 import StudentEnrollmentModal from '../components/StudentEnrollmentModal'
 import { cursosApi } from '../api/cursos'
 import { useAuth } from '../context/AuthContext'
+import { formatCurrencyBs, formatDuration } from '../utils/formatters'
 import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
 
 export default function Rutas() {
   const { user } = useAuth()
   const [rutas, setRutas] = useState([])
   const [cursos, setCursos] = useState([])
+  const [matriculasRuta, setMatriculasRuta] = useState([])
   const [loading, setLoading] = useState(true)
   const [rutaModalOpen, setRutaModalOpen] = useState(false)
   const [rutaEdit, setRutaEdit] = useState(null)
   const [rutaEnrollmentTarget, setRutaEnrollmentTarget] = useState(null)
   const [rutaEnrollmentError, setRutaEnrollmentError] = useState('')
   const [submittingRutaEnrollment, setSubmittingRutaEnrollment] = useState(false)
+  const [expandedRutaId, setExpandedRutaId] = useState(null)
 
   const isAdmin = user?.role?.name?.toLowerCase() === 'administrador'
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true)
-      const [rutasData, cursosData] = await Promise.all([
+      const [rutasData, cursosData, matriculasRutaData] = await Promise.all([
         cursosApi.getRutas(),
         cursosApi.getCursos(),
+        cursosApi.getMatriculasRuta(),
       ])
 
       setRutas(Array.isArray(rutasData) ? rutasData : [])
       setCursos(Array.isArray(cursosData) ? cursosData : [])
+      setMatriculasRuta(Array.isArray(matriculasRutaData) ? matriculasRutaData : [])
     } catch {
       setRutas([])
       setCursos([])
+      setMatriculasRuta([])
     } finally {
       setLoading(false)
     }
@@ -113,6 +119,12 @@ export default function Rutas() {
     }
   }
 
+  const inscritosPorRuta = matriculasRuta.reduce((acc, matricula) => {
+    if (!matricula?.ruta || matricula?.activa === false) return acc
+    acc[matricula.ruta] = (acc[matricula.ruta] || 0) + 1
+    return acc
+  }, {})
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -144,50 +156,108 @@ export default function Rutas() {
             <p className="text-sm text-gray-500">Crea una ruta para comenzar a organizar los cursos.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {rutas.map((ruta) => (
-              <article key={ruta.id} className="bg-white rounded-2xl border border-gray-200 p-4 space-y-3 shadow-sm hover:shadow-md transition">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h2 className="font-semibold text-gray-800">{ruta.titulo}</h2>
-                    <p className="text-sm text-gray-500 mt-1 line-clamp-2">{ruta.descripcion || 'Sin descripcion'}</p>
-                  </div>
-                  <span className={`text-[10px] px-2 py-1 rounded-full ${ruta.publicado ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                    {ruta.publicado ? 'Publicada' : 'Borrador'}
-                  </span>
-                </div>
+          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-xs">Ruta</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-xs">Estado</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-xs">Precio</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-xs">Duracion</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-xs">Inscritos</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-xs">Cursos</th>
+                  {isAdmin && (
+                    <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-xs">Acciones</th>
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {rutas.map((ruta) => {
+                  const rutaCursos = cursos.filter((curso) => curso.ruta === ruta.id)
+                  const isExpanded = expandedRutaId === ruta.id
 
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <span>Orden #{ruta.orden}</span>
-                </div>
+                  return (
+                    <Fragment key={ruta.id}>
+                      <tr className="hover:bg-gray-50 transition">
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-gray-800">{ruta.titulo}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-[10px] px-2 py-1 rounded-full ${ruta.publicado ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {ruta.publicado ? 'Publicada' : 'Borrador'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-700 font-medium">{formatCurrencyBs(ruta.precio_total)}</td>
+                        <td className="px-4 py-3 text-gray-700">{formatDuration(ruta.duracion_total_min)}</td>
+                        <td className="px-4 py-3 text-gray-700 font-medium">
+                          {inscritosPorRuta[ruta.id] || 0}
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => setExpandedRutaId(isExpanded ? null : ruta.id)}
+                            className="px-3 py-1.5 rounded-lg text-xs bg-gray-900 text-white hover:bg-gray-800 transition"
+                          >
+                            {isExpanded ? 'Hide' : 'Show'}
+                          </button>
+                        </td>
+                        {isAdmin && (
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setRutaEnrollmentError('')
+                                  setRutaEnrollmentTarget(ruta)
+                                }}
+                                className="px-2.5 py-1.5 rounded-lg text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition inline-flex items-center gap-1"
+                              >
+                                <UserPlus size={12} /> Matricular
+                              </button>
+                              <button
+                                onClick={() => openEditRuta(ruta)}
+                                className="px-2.5 py-1.5 rounded-lg text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 transition inline-flex items-center gap-1"
+                              >
+                                <Edit size={12} /> Editar
+                              </button>
+                              <button
+                                onClick={() => handleDeleteRuta(ruta)}
+                                className="px-2.5 py-1.5 rounded-lg text-xs bg-red-100 text-red-700 hover:bg-red-200 transition inline-flex items-center gap-1"
+                              >
+                                <Trash2 size={12} /> Eliminar
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
 
-                {isAdmin && (
-                  <div className="flex items-center gap-2 pt-1">
-                    <button
-                      onClick={() => {
-                        setRutaEnrollmentError('')
-                        setRutaEnrollmentTarget(ruta)
-                      }}
-                      className="px-3 py-1.5 rounded-lg text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition inline-flex items-center gap-1"
-                    >
-                      <UserPlus size={12} /> Matricular nuevo estudiante
-                    </button>
-                    <button
-                      onClick={() => openEditRuta(ruta)}
-                      className="px-3 py-1.5 rounded-lg text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 transition inline-flex items-center gap-1"
-                    >
-                      <Edit size={12} /> Editar
-                    </button>
-                    <button
-                      onClick={() => handleDeleteRuta(ruta)}
-                      className="px-3 py-1.5 rounded-lg text-xs bg-red-100 text-red-700 hover:bg-red-200 transition inline-flex items-center gap-1"
-                    >
-                      <Trash2 size={12} /> Eliminar
-                    </button>
-                  </div>
-                )}
-              </article>
-            ))}
+                      {isExpanded && (
+                        <tr className="bg-gray-50/70">
+                          <td colSpan={isAdmin ? 7 : 6} className="px-4 py-3">
+                            {rutaCursos.length === 0 ? (
+                              <p className="text-sm text-gray-500">Esta ruta no tiene cursos asociados.</p>
+                            ) : (
+                              <div className="space-y-2">
+                                <p className="text-xs font-semibold text-gray-500 uppercase">Cursos de la ruta</p>
+                                <div className="space-y-1">
+                                  {rutaCursos.map((curso) => (
+                                    <div key={curso.id} className="flex items-center justify-between border border-gray-200 bg-white rounded-lg px-3 py-2">
+                                      <span className="text-sm text-gray-700 font-medium">{curso.titulo}</span>
+                                      <div className="flex items-center gap-4">
+                                        <span className="text-xs text-gray-500">Precio: {formatCurrencyBs(curso.precio)}</span>
+                                        <span className="text-xs text-gray-500">Duracion: {formatDuration(curso.duracion_total_min)}</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         )}
 

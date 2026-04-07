@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { cursosApi } from './api/cursos'
 import Layout from './components/Layout'
 import { useAuth } from './context/AuthContext'
+import { formatCurrencyBs } from './utils/formatters'
 
 const estadoBadge = {
   disponible: 'bg-emerald-100 text-emerald-700',
@@ -180,6 +181,9 @@ export default function App() {
                         <span className="inline-flex items-center gap-1.5">
                           <Clock3 size={16} />
                           {formatDuration(curso.duracion_total_min)}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-700">
+                          {formatCurrencyBs(curso.precio)}
                         </span>
                       </div>
 

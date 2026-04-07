@@ -5,6 +5,7 @@ import Layout from '../components/Layout'
 import StudentEnrollmentModal from '../components/StudentEnrollmentModal'
 import { cursosApi } from '../api/cursos'
 import { useAuth } from '../context/AuthContext'
+import { formatCurrencyBs, formatDuration } from '../utils/formatters'
 import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
 
 const nivelBadge = {
@@ -17,14 +18,6 @@ const estadoBadge = {
   disponible: 'bg-emerald-100 text-emerald-700',
   proximo: 'bg-amber-100 text-amber-700',
   bloqueado: 'bg-gray-200 text-gray-700',
-}
-
-const formatDuration = (minutes) => {
-  if (!minutes) return 'N/A'
-  if (minutes < 60) return `${minutes} min`
-  const hours = Math.floor(minutes / 60)
-  const remaining = minutes % 60
-  return remaining ? `${hours}h ${remaining}m` : `${hours}h`
 }
 
 const initialLeccionForm = {
@@ -721,6 +714,9 @@ export default function CursoDetalle() {
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <Clock3 size={18} />
               {formatDuration(curso.duracion_total_min)}
+            </div>
+            <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700">
+              {formatCurrencyBs(curso.precio)}
             </div>
             <div className="text-sm font-medium text-blue-600">
               Progreso: {progresoTotal}%

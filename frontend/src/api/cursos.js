@@ -9,8 +9,6 @@ const sanitizePayload = (data) => {
     'slug',
     'video_intro_url',
     'url',
-    'fecha_disponible_desde',
-    'fecha_disponible_hasta',
     'codigo_acceso',
     'fecha_inicio',
     'fecha_fin',
