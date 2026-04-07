@@ -4,6 +4,7 @@ import RoleModal from '../components/RoleModal'
 import { Pencil, ShieldCheck, Trash2, Settings, Users } from 'lucide-react'
 import Layout from '../components/Layout'
 import { usePermissions } from '../hooks/usePermissions'
+import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
 
 export default function Roles() {
   const [roles, setRoles] = useState([])
@@ -45,9 +46,10 @@ export default function Roles() {
       try {
         await deleteRole(role.id)
         setRoles(roles.filter(r => r.id !== role.id))
+        showSuccess('Rol eliminado correctamente.')
       } catch (error) {
         console.error('Error deleting role:', error)
-        alert('Error al eliminar el rol')
+        showError(getApiErrorMessage(error, 'Error al eliminar el rol.'))
       }
     }
   }
@@ -57,15 +59,17 @@ export default function Roles() {
       if (editingRole) {
         const response = await updateRole(editingRole.id, roleData)
         setRoles(roles.map(r => r.id === editingRole.id ? response.data : r))
+        showSuccess('Rol actualizado correctamente.')
       } else {
         const response = await createRole(roleData)
         setRoles([...roles, response.data])
+        showSuccess('Rol creado correctamente.')
       }
       setShowModal(false)
       setEditingRole(null)
     } catch (error) {
       console.error('Error saving role:', error)
-      alert('Error al guardar el rol')
+      showError(getApiErrorMessage(error, 'Error al guardar el rol.'))
     }
   }
 

@@ -1,4 +1,8 @@
+import secrets
+import string
+
 from rest_framework import serializers
+from core.models import User
 
 from .models import (
     ComentarioCurso,
@@ -11,6 +15,12 @@ from .models import (
     Ruta,
     Seccion,
 )
+
+
+def generate_enrollment_access_code(prefix='MAT'):
+    alphabet = string.ascii_uppercase + string.digits
+    token = ''.join(secrets.choice(alphabet) for _ in range(8))
+    return f'{prefix}-{token}'
 
 
 class RutaSerializer(serializers.ModelSerializer):
@@ -398,6 +408,11 @@ class MatriculaRutaSerializer(serializers.ModelSerializer):
 
         return attrs
 
+    def create(self, validated_data):
+        if not validated_data.get('codigo_acceso'):
+            validated_data['codigo_acceso'] = generate_enrollment_access_code('RUTA')
+        return super().create(validated_data)
+
 
 class MatriculaCursoSerializer(serializers.ModelSerializer):
     user_nombre = serializers.CharField(source='user.name', read_only=True)
@@ -436,6 +451,46 @@ class MatriculaCursoSerializer(serializers.ModelSerializer):
             if fecha_fin is None:
                 fecha_fin = self.instance.fecha_fin
 
+        if fecha_inicio and fecha_fin and fecha_fin < fecha_inicio:
+            raise serializers.ValidationError(
+                {'fecha_fin': 'Debe ser mayor o igual a fecha_inicio.'}
+            )
+
+        return attrs
+
+    def create(self, validated_data):
+        if not validated_data.get('codigo_acceso'):
+            validated_data['codigo_acceso'] = generate_enrollment_access_code('CURSO')
+        return super().create(validated_data)
+
+
+class CreateStudentEnrollmentSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=100)
+    paternal_surname = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    maternal_surname = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    ci = serializers.CharField(max_length=20)
+    email = serializers.EmailField()
+    phone_number = serializers.CharField(max_length=20)
+    university = serializers.CharField(max_length=100)
+    country = serializers.CharField(max_length=100)
+    password = serializers.CharField(write_only=True, min_length=6)
+    codigo_acceso = serializers.CharField(max_length=120, required=False, allow_blank=True, allow_null=True)
+    fecha_inicio = serializers.DateField(required=False, allow_null=True)
+    fecha_fin = serializers.DateField(required=False, allow_null=True)
+    activa = serializers.BooleanField(required=False, default=True)
+
+    def validate(self, attrs):
+        if User.objects.filter(email=attrs['email']).exists():
+            raise serializers.ValidationError({'email': 'Ya existe un usuario con este email.'})
+
+        if User.objects.filter(ci=attrs['ci']).exists():
+            raise serializers.ValidationError({'ci': 'Ya existe un usuario con este CI.'})
+
+        if User.objects.filter(phone_number=attrs['phone_number']).exists():
+            raise serializers.ValidationError({'phone_number': 'Ya existe un usuario con este telefono.'})
+
+        fecha_inicio = attrs.get('fecha_inicio')
+        fecha_fin = attrs.get('fecha_fin')
         if fecha_inicio and fecha_fin and fecha_fin < fecha_inicio:
             raise serializers.ValidationError(
                 {'fecha_fin': 'Debe ser mayor o igual a fecha_inicio.'}

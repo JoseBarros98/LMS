@@ -5,6 +5,7 @@ import Layout from '../components/Layout'
 import CursoModal from '../components/CursoModal'
 import { cursosApi } from '../api/cursos'
 import { useAuth } from '../context/AuthContext'
+import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
 
 const estadoBadge = {
   disponible: 'bg-emerald-100 text-emerald-700',
@@ -81,15 +82,21 @@ export default function Cursos() {
   }
 
   const handleSubmit = async (formData) => {
-    if (cursoEdit) {
-      await cursosApi.updateCurso(cursoEdit.id, formData)
-    } else {
-      await cursosApi.createCurso(formData)
-    }
+    try {
+      if (cursoEdit) {
+        await cursosApi.updateCurso(cursoEdit.id, formData)
+        showSuccess('Curso actualizado correctamente.')
+      } else {
+        await cursosApi.createCurso(formData)
+        showSuccess('Curso creado correctamente.')
+      }
 
-    setModalOpen(false)
-    setCursoEdit(null)
-    await loadData()
+      setModalOpen(false)
+      setCursoEdit(null)
+      await loadData()
+    } catch (error) {
+      showError(getApiErrorMessage(error, 'No se pudo guardar el curso.'))
+    }
   }
 
   const handleDeleteCurso = async (curso) => {
@@ -98,8 +105,13 @@ export default function Cursos() {
       return
     }
 
-    await cursosApi.deleteCurso(curso.id)
-    await loadData()
+    try {
+      await cursosApi.deleteCurso(curso.id)
+      showSuccess('Curso eliminado correctamente.')
+      await loadData()
+    } catch (error) {
+      showError(getApiErrorMessage(error, 'No se pudo eliminar el curso.'))
+    }
   }
 
   const rutaTitle = (rutaId) => {

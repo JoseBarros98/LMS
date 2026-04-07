@@ -1,0 +1,238 @@
+import { useMemo, useState } from 'react'
+import { UserPlus, X } from 'lucide-react'
+
+const initialForm = {
+  name: '',
+  paternal_surname: '',
+  maternal_surname: '',
+  ci: '',
+  email: '',
+  phone_number: '',
+  university: '',
+  country: '',
+  password: '',
+  fecha_inicio: '',
+  fecha_fin: '',
+  activa: true,
+}
+
+export default function StudentEnrollmentModal({
+  title,
+  subtitle,
+  submitLabel,
+  loading = false,
+  error = '',
+  onSubmit,
+  onClose,
+}) {
+  const [form, setForm] = useState(initialForm)
+
+  const canSubmit = useMemo(() => {
+    return (
+      form.name.trim() &&
+      form.ci.trim() &&
+      form.email.trim() &&
+      form.phone_number.trim() &&
+      form.university.trim() &&
+      form.country.trim() &&
+      form.password.trim()
+    )
+  }, [form])
+
+  const handleChange = (event) => {
+    const { name, value, type, checked } = event.target
+    setForm((previous) => ({
+      ...previous,
+      [name]: type === 'checkbox' ? checked : value,
+    }))
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    await onSubmit(form)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="w-full max-w-2xl bg-white rounded-2xl border border-gray-200 shadow-xl max-h-[92vh] overflow-y-auto">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold text-gray-800">{title}</h2>
+            {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-gray-100 text-gray-500"
+            disabled={loading}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {error && (
+            <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              {error}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="md:col-span-2">
+              <label className="block text-xs font-medium text-gray-500 mb-1">Nombre completo *</label>
+              <input
+                name="name"
+                value={form.name}
+                onChange={handleChange}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Apellido paterno</label>
+              <input
+                name="paternal_surname"
+                value={form.paternal_surname}
+                onChange={handleChange}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Apellido materno</label>
+              <input
+                name="maternal_surname"
+                value={form.maternal_surname}
+                onChange={handleChange}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">CI *</label>
+              <input
+                name="ci"
+                value={form.ci}
+                onChange={handleChange}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Telefono *</label>
+              <input
+                name="phone_number"
+                value={form.phone_number}
+                onChange={handleChange}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                required
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-xs font-medium text-gray-500 mb-1">Email *</label>
+              <input
+                type="email"
+                name="email"
+                value={form.email}
+                onChange={handleChange}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Universidad *</label>
+              <input
+                name="university"
+                value={form.university}
+                onChange={handleChange}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Pais *</label>
+              <input
+                name="country"
+                value={form.country}
+                onChange={handleChange}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                required
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-xs font-medium text-gray-500 mb-1">Contrasena temporal *</label>
+              <input
+                type="password"
+                name="password"
+                value={form.password}
+                onChange={handleChange}
+                minLength={6}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                required
+              />
+            </div>
+          </div>
+
+          <div className="border-t border-gray-100 pt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Fecha inicio</label>
+              <input
+                type="date"
+                name="fecha_inicio"
+                value={form.fecha_inicio}
+                onChange={handleChange}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Fecha fin</label>
+              <input
+                type="date"
+                name="fecha_fin"
+                value={form.fecha_fin}
+                onChange={handleChange}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </div>
+
+            <label className="inline-flex items-center gap-2 text-sm text-gray-700 md:col-span-4">
+              <input
+                type="checkbox"
+                name="activa"
+                checked={form.activa}
+                onChange={handleChange}
+              />
+              Matricula activa
+            </label>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 text-sm font-medium"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={loading || !canSubmit}
+              className="flex-1 px-4 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-sm font-semibold inline-flex items-center justify-center gap-2"
+            >
+              <UserPlus size={16} />
+              {loading ? 'Guardando...' : submitLabel}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}

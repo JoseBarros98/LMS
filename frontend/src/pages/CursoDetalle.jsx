@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Clock3, MessageCircle, Send, Trash2, BookOpen, Package, Settings, Plus, X, Folder, FolderOpen, FileText, Search, ChevronRight, Link2, Video, Headphones, Pencil, Upload } from 'lucide-react'
+import { ArrowLeft, Clock3, MessageCircle, Send, Trash2, BookOpen, Package, Settings, Plus, X, Folder, FolderOpen, FileText, Search, ChevronRight, Link2, Video, Headphones, Pencil, Upload, UserPlus } from 'lucide-react'
 import Layout from '../components/Layout'
+import StudentEnrollmentModal from '../components/StudentEnrollmentModal'
 import { cursosApi } from '../api/cursos'
 import { useAuth } from '../context/AuthContext'
+import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
 
 const nivelBadge = {
   basico: 'bg-sky-100 text-sky-700',
@@ -194,6 +196,9 @@ export default function CursoDetalle() {
   const [mediatecaUploadMode, setMediatecaUploadMode] = useState('url')
   const [mediatecaFile, setMediatecaFile] = useState(null)
   const [pdfModalItem, setPdfModalItem] = useState(null)
+  const [studentModalOpen, setStudentModalOpen] = useState(false)
+  const [studentEnrollmentError, setStudentEnrollmentError] = useState('')
+  const [submittingStudent, setSubmittingStudent] = useState(false)
 
   const isAdmin = user?.role?.name?.toLowerCase() === 'administrador'
 
@@ -251,9 +256,32 @@ export default function CursoDetalle() {
       }
       await loadData()
     } catch {
-      alert('No se pudo enviar el comentario o la respuesta.')
+      showError('No se pudo enviar el comentario o la respuesta.')
     } finally {
       setEnviandoComentario(false)
+    }
+  }
+
+  const handleCreateStudentAndEnroll = async (form) => {
+    if (form.fecha_inicio && form.fecha_fin && form.fecha_fin < form.fecha_inicio) {
+      setStudentEnrollmentError('La fecha fin no puede ser menor que la fecha inicio.')
+      showError('La fecha fin no puede ser menor que la fecha inicio.')
+      return
+    }
+
+    try {
+      setSubmittingStudent(true)
+      setStudentEnrollmentError('')
+      await cursosApi.createStudentAndEnrollInCurso(id, form)
+      showSuccess('Estudiante creado y matriculado en el curso.')
+      setStudentModalOpen(false)
+      await loadData()
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'No se pudo crear y matricular al estudiante en este curso.')
+      setStudentEnrollmentError(message)
+      showError(message)
+    } finally {
+      setSubmittingStudent(false)
     }
   }
 
@@ -262,18 +290,20 @@ export default function CursoDetalle() {
 
     try {
       await cursosApi.deleteComentario(comentarioId)
+      showSuccess('Comentario eliminado correctamente.')
       await loadData()
     } catch {
-      alert('No se pudo eliminar el comentario.')
+      showError('No se pudo eliminar el comentario.')
     }
   }
 
   const handleMarcarLeccion = async (leccionId) => {
     try {
       await cursosApi.updateProgreso(leccionId, { porcentaje: 100, completada: true })
+      showSuccess('Progreso actualizado correctamente.')
       await loadData()
     } catch {
-      alert('No se pudo actualizar el progreso.')
+      showError('No se pudo actualizar el progreso.')
     }
   }
 
@@ -356,7 +386,7 @@ export default function CursoDetalle() {
   const handleCrearSeccion = async (e) => {
     e.preventDefault()
     if (!seccionForm.titulo.trim()) {
-      alert('El título de la sección es requerido.')
+      showError('El titulo de la seccion es requerido.')
       return
     }
 
@@ -365,18 +395,19 @@ export default function CursoDetalle() {
         curso: id,
         ...seccionForm,
       })
+      showSuccess('Seccion creada correctamente.')
       setSeccionForm({ titulo: '', descripcion: '', orden: 0 })
       setSeccionModalOpen(false)
       await loadData()
     } catch {
-      alert('No se pudo crear la sección.')
+      showError('No se pudo crear la seccion.')
     }
   }
 
   const handleGuardarLeccion = async (e) => {
     e.preventDefault()
     if (!selectedSeccion || !leccionForm.titulo.trim() || !leccionForm.video_url.trim()) {
-      alert('Completa todos los campos requeridos.')
+      showError('Completa todos los campos requeridos.')
       return
     }
 
@@ -396,9 +427,10 @@ export default function CursoDetalle() {
       setLeccionEdit(null)
       setSelectedSeccion(null)
       setLeccionModalOpen(false)
+      showSuccess(leccionEdit ? 'Leccion actualizada correctamente.' : 'Leccion creada correctamente.')
       await loadData()
     } catch {
-      alert(leccionEdit ? 'No se pudo actualizar la lección.' : 'No se pudo crear la lección.')
+      showError(leccionEdit ? 'No se pudo actualizar la leccion.' : 'No se pudo crear la leccion.')
     }
   }
 
@@ -424,9 +456,10 @@ export default function CursoDetalle() {
       if (selectedLeccion?.id === leccionId) {
         setSelectedLeccion(null)
       }
+      showSuccess('Leccion eliminada correctamente.')
       await loadData()
     } catch {
-      alert('No se pudo eliminar la lección.')
+      showError('No se pudo eliminar la leccion.')
     }
   }
 
@@ -435,17 +468,17 @@ export default function CursoDetalle() {
     const isFolder = mediatecaCreateMode === 'carpeta'
 
     if (!mediatecaForm.titulo.trim()) {
-      alert('El título es requerido.')
+      showError('El titulo es requerido.')
       return
     }
 
     if (!isFolder) {
       if (mediatecaUploadMode === 'file' && !mediatecaFile && !mediatecaEdit?.archivo) {
-        alert('Selecciona un archivo para subir.')
+        showError('Selecciona un archivo para subir.')
         return
       }
       if (mediatecaUploadMode === 'url' && !mediatecaForm.url.trim() && !mediatecaEdit?.url) {
-        alert('La URL es requerida.')
+        showError('La URL es requerida.')
         return
       }
     }
@@ -482,9 +515,10 @@ export default function CursoDetalle() {
       setMediatecaFile(null)
       setMediatecaUploadMode('url')
       setMediatecaModalOpen(false)
+      showSuccess(mediatecaEdit ? 'Recurso actualizado correctamente.' : `${isFolder ? 'Carpeta' : 'Recurso'} creado correctamente.`)
       await loadData()
     } catch {
-      alert(`No se pudo ${mediatecaEdit ? 'actualizar' : 'crear'} ${isFolder ? 'la carpeta' : 'el archivo'}.`)
+      showError(`No se pudo ${mediatecaEdit ? 'actualizar' : 'crear'} ${isFolder ? 'la carpeta' : 'el archivo'}.`)
     }
   }
 
@@ -517,9 +551,10 @@ export default function CursoDetalle() {
 
     try {
       await cursosApi.deleteMediatecaItem(itemId)
+      showSuccess('Recurso eliminado correctamente.')
       await loadData()
     } catch {
-      alert('No se pudo eliminar el recurso.')
+      showError('No se pudo eliminar el recurso.')
     }
   }
 
@@ -657,9 +692,25 @@ export default function CursoDetalle() {
               </div>
             </div>
 
-            {curso.imagen_portada_url && (
-              <img src={curso.imagen_portada_url} alt={curso.titulo} className="w-48 h-32 object-cover rounded-xl" />
-            )}
+            <div className="flex flex-col items-end gap-3">
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStudentEnrollmentError('')
+                    setStudentModalOpen(true)
+                  }}
+                  className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition text-sm font-medium inline-flex items-center gap-2"
+                >
+                  <UserPlus size={15} />
+                  Crear estudiante y matricular
+                </button>
+              )}
+
+              {curso.imagen_portada_url && (
+                <img src={curso.imagen_portada_url} alt={curso.titulo} className="w-48 h-32 object-cover rounded-xl" />
+              )}
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-6 pt-4 border-t border-gray-200">
@@ -1527,6 +1578,22 @@ export default function CursoDetalle() {
             </form>
           </div>
         </div>
+      )}
+
+      {studentModalOpen && isAdmin && (
+        <StudentEnrollmentModal
+          title="Nuevo estudiante para este curso"
+          subtitle={`Se creara con rol Estudiante y quedara matriculado en ${curso.titulo}.`}
+          submitLabel="Crear y matricular"
+          loading={submittingStudent}
+          error={studentEnrollmentError}
+          onSubmit={handleCreateStudentAndEnroll}
+          onClose={() => {
+            if (submittingStudent) return
+            setStudentModalOpen(false)
+            setStudentEnrollmentError('')
+          }}
+        />
       )}
     </Layout>
   )

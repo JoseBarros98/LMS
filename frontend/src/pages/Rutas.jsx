@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Edit, Plus, Sparkles, Trash2 } from 'lucide-react'
+import { Edit, Plus, Sparkles, Trash2, UserPlus } from 'lucide-react'
 import Layout from '../components/Layout'
 import RutaModal from '../components/RutaModal'
+import StudentEnrollmentModal from '../components/StudentEnrollmentModal'
 import { cursosApi } from '../api/cursos'
 import { useAuth } from '../context/AuthContext'
+import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
 
 export default function Rutas() {
   const { user } = useAuth()
@@ -12,6 +14,9 @@ export default function Rutas() {
   const [loading, setLoading] = useState(true)
   const [rutaModalOpen, setRutaModalOpen] = useState(false)
   const [rutaEdit, setRutaEdit] = useState(null)
+  const [rutaEnrollmentTarget, setRutaEnrollmentTarget] = useState(null)
+  const [rutaEnrollmentError, setRutaEnrollmentError] = useState('')
+  const [submittingRutaEnrollment, setSubmittingRutaEnrollment] = useState(false)
 
   const isAdmin = user?.role?.name?.toLowerCase() === 'administrador'
 
@@ -48,15 +53,21 @@ export default function Rutas() {
   }
 
   const handleSubmitRuta = async (formData) => {
-    if (rutaEdit) {
-      await cursosApi.updateRuta(rutaEdit.id, formData)
-    } else {
-      await cursosApi.createRuta(formData)
-    }
+    try {
+      if (rutaEdit) {
+        await cursosApi.updateRuta(rutaEdit.id, formData)
+        showSuccess('Ruta actualizada correctamente.')
+      } else {
+        await cursosApi.createRuta(formData)
+        showSuccess('Ruta creada correctamente.')
+      }
 
-    setRutaModalOpen(false)
-    setRutaEdit(null)
-    await loadData()
+      setRutaModalOpen(false)
+      setRutaEdit(null)
+      await loadData()
+    } catch (error) {
+      showError(getApiErrorMessage(error, 'No se pudo guardar la ruta.'))
+    }
   }
 
   const handleDeleteRuta = async (ruta) => {
@@ -68,8 +79,38 @@ export default function Rutas() {
     const ok = window.confirm(message)
     if (!ok) return
 
-    await cursosApi.deleteRuta(ruta.id)
-    await loadData()
+    try {
+      await cursosApi.deleteRuta(ruta.id)
+      showSuccess('Ruta eliminada correctamente.')
+      await loadData()
+    } catch (error) {
+      showError(getApiErrorMessage(error, 'No se pudo eliminar la ruta.'))
+    }
+  }
+
+  const handleCreateStudentForRuta = async (form) => {
+    if (!rutaEnrollmentTarget) return
+
+    if (form.fecha_inicio && form.fecha_fin && form.fecha_fin < form.fecha_inicio) {
+      setRutaEnrollmentError('La fecha fin no puede ser menor que la fecha inicio.')
+      showError('La fecha fin no puede ser menor que la fecha inicio.')
+      return
+    }
+
+    try {
+      setSubmittingRutaEnrollment(true)
+      setRutaEnrollmentError('')
+      await cursosApi.createStudentAndEnrollInRuta(rutaEnrollmentTarget.id, form)
+      showSuccess('Estudiante creado y matriculado en la ruta.')
+      setRutaEnrollmentTarget(null)
+      await loadData()
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'No se pudo crear y matricular al estudiante en esta ruta.')
+      setRutaEnrollmentError(message)
+      showError(message)
+    } finally {
+      setSubmittingRutaEnrollment(false)
+    }
   }
 
   return (
@@ -123,6 +164,15 @@ export default function Rutas() {
                 {isAdmin && (
                   <div className="flex items-center gap-2 pt-1">
                     <button
+                      onClick={() => {
+                        setRutaEnrollmentError('')
+                        setRutaEnrollmentTarget(ruta)
+                      }}
+                      className="px-3 py-1.5 rounded-lg text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition inline-flex items-center gap-1"
+                    >
+                      <UserPlus size={12} /> Matricular nuevo estudiante
+                    </button>
+                    <button
                       onClick={() => openEditRuta(ruta)}
                       className="px-3 py-1.5 rounded-lg text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 transition inline-flex items-center gap-1"
                     >
@@ -149,6 +199,22 @@ export default function Rutas() {
             onClosed={() => {
               setRutaModalOpen(false)
               setRutaEdit(null)
+            }}
+          />
+        )}
+
+        {rutaEnrollmentTarget && isAdmin && (
+          <StudentEnrollmentModal
+            title="Nuevo estudiante para esta ruta"
+            subtitle={`Se creara con rol Estudiante y quedara matriculado en ${rutaEnrollmentTarget.titulo}.`}
+            submitLabel="Crear y matricular"
+            loading={submittingRutaEnrollment}
+            error={rutaEnrollmentError}
+            onSubmit={handleCreateStudentForRuta}
+            onClose={() => {
+              if (submittingRutaEnrollment) return
+              setRutaEnrollmentTarget(null)
+              setRutaEnrollmentError('')
             }}
           />
         )}

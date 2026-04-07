@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from './context/AuthContext'
 import PrivateRoute from './components/PrivateRoute'
 import Login from './pages/Login'
@@ -92,6 +93,18 @@ createRoot(document.getElementById('root')).render(
             </PrivateRoute>
           } />
         </Routes>
+
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 3500,
+            style: {
+              borderRadius: '12px',
+              background: '#111827',
+              color: '#ffffff',
+            },
+          }}
+        />
       </AuthProvider>
     </BrowserRouter>
   </StrictMode>,

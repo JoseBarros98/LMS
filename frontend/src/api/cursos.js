@@ -100,6 +100,14 @@ export const cursosApi = {
     return response.data
   },
 
+  createStudentAndEnrollInRuta: (rutaId, data) => {
+    return api.post(`/rutas/${rutaId}/crear_estudiante_matriculado/`, sanitizePayload(data))
+  },
+
+  createStudentAndEnrollInCurso: (cursoId, data) => {
+    return api.post(`/cursos/${cursoId}/crear_estudiante_matriculado/`, sanitizePayload(data))
+  },
+
   getSecciones: async (cursoId) => {
     const response = await api.get('/secciones/', { params: { curso_id: cursoId } })
     return response.data

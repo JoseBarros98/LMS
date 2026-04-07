@@ -4,6 +4,7 @@ import UsuarioModal from '../components/UsuarioModal'
 import { Pencil, UserPlus, Search, UserX, UserCheck } from 'lucide-react'
 import Layout from '../components/Layout'
 import { usePermissions } from '../hooks/usePermissions'
+import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
 
 export default function Usuarios() {
     const [users, setUsers] = useState([])
@@ -15,10 +16,16 @@ export default function Usuarios() {
     const { canCreate, canUpdate, canDelete, loading: permissionsLoading } = usePermissions()
     
     const fetchUsers = async () => {
-        setLoading(true)
-        const res = await getUsers()
-        setUsers(res.data)
-        setLoading(false)
+        try {
+            setLoading(true)
+            const res = await getUsers()
+            setUsers(res.data)
+        } catch (error) {
+            setUsers([])
+            showError(getApiErrorMessage(error, 'No se pudieron cargar los usuarios.'))
+        } finally {
+            setLoading(false)
+        }
     }
 
     useEffect(() => { fetchUsers() }, [])
@@ -27,14 +34,16 @@ export default function Usuarios() {
         try {
             if (userEdit) {
                 await updateUser(userEdit.id, formData)
+                showSuccess('Usuario actualizado correctamente.')
             } else {
                 await createUser(formData)
+                showSuccess('Usuario creado correctamente.')
             }
             setModalOpen(false)
             setUserEdit(null)
             fetchUsers()
         } catch (error) {
-            console.log('Error al guardar usuario:', error.response?.data)
+            showError(getApiErrorMessage(error, 'Error al guardar usuario.'))
         }
     }
 
@@ -45,19 +54,29 @@ export default function Usuarios() {
 
     const handleDesactivar = async (usuario) => {
         if (confirm(`¿Estás seguro de desactivar a ${usuario.name}?`)) {
-            const formData = new FormData()
-            formData.append('status', false)
-            await updateUser(usuario.id, formData)
-            fetchUsers()
+            try {
+                const formData = new FormData()
+                formData.append('status', false)
+                await updateUser(usuario.id, formData)
+                showSuccess('Usuario desactivado correctamente.')
+                fetchUsers()
+            } catch (error) {
+                showError(getApiErrorMessage(error, 'No se pudo desactivar el usuario.'))
+            }
         }
     }
 
     const handleReactivar = async (usuario) => {
         if (confirm(`¿Estás seguro de reactivar a ${usuario.name}?`)) {
-            const formData = new FormData()
-            formData.append('status', true)
-            await updateUser(usuario.id, formData)
-            fetchUsers()
+            try {
+                const formData = new FormData()
+                formData.append('status', true)
+                await updateUser(usuario.id, formData)
+                showSuccess('Usuario reactivado correctamente.')
+                fetchUsers()
+            } catch (error) {
+                showError(getApiErrorMessage(error, 'No se pudo reactivar el usuario.'))
+            }
         }
     }
 

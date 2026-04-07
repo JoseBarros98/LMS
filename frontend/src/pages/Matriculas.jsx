@@ -4,6 +4,7 @@ import Layout from '../components/Layout'
 import { cursosApi } from '../api/cursos'
 import { getUsers } from '../api/users'
 import { useAuth } from '../context/AuthContext'
+import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
 
 const initialMatriculaForm = {
   tipo: 'ruta',
@@ -14,35 +15,6 @@ const initialMatriculaForm = {
   fecha_inicio: '',
   fecha_fin: '',
   activa: true,
-}
-
-const extractApiError = (error, fallback) => {
-  const data = error?.response?.data
-
-  if (!data) {
-    return fallback
-  }
-
-  if (typeof data === 'string') {
-    return data
-  }
-
-  if (Array.isArray(data?.non_field_errors) && data.non_field_errors.length > 0) {
-    return data.non_field_errors[0]
-  }
-
-  const firstKey = Object.keys(data)[0]
-  if (firstKey) {
-    const value = data[firstKey]
-    if (Array.isArray(value) && value.length > 0) {
-      return value[0]
-    }
-    if (typeof value === 'string') {
-      return value
-    }
-  }
-
-  return fallback
 }
 
 export default function Matriculas() {
@@ -134,21 +106,25 @@ export default function Matriculas() {
 
     if (!matriculaForm.user) {
       setMatriculaError('Debes seleccionar un estudiante.')
+      showError('Debes seleccionar un estudiante.')
       return
     }
 
     if (matriculaForm.tipo === 'ruta' && !matriculaForm.ruta) {
       setMatriculaError('Debes seleccionar una ruta para la matricula.')
+      showError('Debes seleccionar una ruta para la matricula.')
       return
     }
 
     if (matriculaForm.tipo === 'curso' && !matriculaForm.curso) {
       setMatriculaError('Debes seleccionar un curso para la matricula.')
+      showError('Debes seleccionar un curso para la matricula.')
       return
     }
 
     if (matriculaForm.fecha_inicio && matriculaForm.fecha_fin && matriculaForm.fecha_fin < matriculaForm.fecha_inicio) {
       setMatriculaError('La fecha fin no puede ser menor que la fecha inicio.')
+      showError('La fecha fin no puede ser menor que la fecha inicio.')
       return
     }
 
@@ -171,36 +147,59 @@ export default function Matriculas() {
         ...initialMatriculaForm,
         tipo: prev.tipo,
       }))
+      showSuccess('Matricula creada correctamente.')
       await loadData()
     } catch (error) {
-      setMatriculaError(extractApiError(error, 'No se pudo crear la matricula.'))
+      const message = getApiErrorMessage(error, 'No se pudo crear la matricula.')
+      setMatriculaError(message)
+      showError(message)
     }
   }
 
   const handleToggleMatriculaRuta = async (matricula) => {
-    await cursosApi.updateMatriculaRuta(matricula.id, { activa: !matricula.activa })
-    await loadData()
+    try {
+      await cursosApi.updateMatriculaRuta(matricula.id, { activa: !matricula.activa })
+      showSuccess(`Matricula ${matricula.activa ? 'desactivada' : 'activada'} correctamente.`)
+      await loadData()
+    } catch (error) {
+      showError(getApiErrorMessage(error, 'No se pudo actualizar la matricula por ruta.'))
+    }
   }
 
   const handleToggleMatriculaCurso = async (matricula) => {
-    await cursosApi.updateMatriculaCurso(matricula.id, { activa: !matricula.activa })
-    await loadData()
+    try {
+      await cursosApi.updateMatriculaCurso(matricula.id, { activa: !matricula.activa })
+      showSuccess(`Matricula ${matricula.activa ? 'desactivada' : 'activada'} correctamente.`)
+      await loadData()
+    } catch (error) {
+      showError(getApiErrorMessage(error, 'No se pudo actualizar la matricula por curso.'))
+    }
   }
 
   const handleDeleteMatriculaRuta = async (matricula) => {
     const ok = window.confirm(`¿Eliminar la matricula de ${matricula.user_nombre || matricula.user_email}?`)
     if (!ok) return
 
-    await cursosApi.deleteMatriculaRuta(matricula.id)
-    await loadData()
+    try {
+      await cursosApi.deleteMatriculaRuta(matricula.id)
+      showSuccess('Matricula por ruta eliminada correctamente.')
+      await loadData()
+    } catch (error) {
+      showError(getApiErrorMessage(error, 'No se pudo eliminar la matricula por ruta.'))
+    }
   }
 
   const handleDeleteMatriculaCurso = async (matricula) => {
     const ok = window.confirm(`¿Eliminar la matricula de ${matricula.user_nombre || matricula.user_email}?`)
     if (!ok) return
 
-    await cursosApi.deleteMatriculaCurso(matricula.id)
-    await loadData()
+    try {
+      await cursosApi.deleteMatriculaCurso(matricula.id)
+      showSuccess('Matricula por curso eliminada correctamente.')
+      await loadData()
+    } catch (error) {
+      showError(getApiErrorMessage(error, 'No se pudo eliminar la matricula por curso.'))
+    }
   }
 
   const userLabel = (matricula) => {

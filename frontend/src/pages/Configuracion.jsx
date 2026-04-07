@@ -6,6 +6,7 @@ import { notificationsApi } from '../api/notifications'
 import Layout from '../components/Layout'
 import { User, Save, Key, Shield, Lock, Computer, Bell, Check, CheckCheck, BellOff, Ticket, RefreshCw, Eye, Map, BookOpen, Calendar, BadgeCheck } from 'lucide-react'
 import { cursosApi } from '../api/cursos'
+import { showError, showSuccess } from '../utils/toast'
 
 export default function Configuracion() {
   const { user, updateUser: updateAuthUser } = useAuth()
@@ -83,7 +84,7 @@ export default function Configuracion() {
       // Validar tamaño del archivo (2 MB = 2 * 1024 * 1024 bytes)
       const maxSize = 2 * 1024 * 1024
       if (file.size > maxSize) {
-        alert('El archivo es demasiado grande. El tamaño máximo es 2 MB.')
+        showError('El archivo es demasiado grande. El tamaño maximo es 2 MB.')
         e.target.value = '' // Limpiar el input
         return
       }
@@ -91,7 +92,7 @@ export default function Configuracion() {
       // Validar tipo de archivo
       const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
       if (!allowedTypes.includes(file.type)) {
-        alert('Formato de archivo no válido. Solo se permiten JPG, PNG y WebP.')
+        showError('Formato de archivo no valido. Solo se permiten JPG, PNG y WebP.')
         e.target.value = '' // Limpiar el input
         return
       }
@@ -127,10 +128,10 @@ export default function Configuracion() {
       }
       updateAuthUser(updatedUser)
       
-      alert('Perfil actualizado correctamente')
+      showSuccess('Perfil actualizado correctamente.')
     } catch (error) {
       console.error('Error al actualizar perfil:', error)
-      alert('Error al actualizar el perfil')
+      showError('Error al actualizar el perfil.')
     } finally {
       setLoading(false)
     }
@@ -262,7 +263,7 @@ export default function Configuracion() {
     e.preventDefault()
     
     if (formData.new_password !== formData.confirm_password) {
-      alert('Las contraseñas nuevas no coinciden')
+      showError('Las contrasenas nuevas no coinciden.')
       return
     }
 
@@ -274,7 +275,7 @@ export default function Configuracion() {
 
       await updateUser(user.id, formDataToSend)
       
-      alert('Contraseña actualizada correctamente')
+      showSuccess('Contrasena actualizada correctamente.')
       setFormData(prev => ({
         ...prev,
         current_password: '',
@@ -283,7 +284,7 @@ export default function Configuracion() {
       }))
     } catch (error) {
       console.error('Error al actualizar contraseña:', error)
-      alert('Error al actualizar la contraseña')
+      showError('Error al actualizar la contrasena.')
     } finally {
       setLoading(false)
     }

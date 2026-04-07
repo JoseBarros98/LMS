@@ -1,16 +1,21 @@
 from datetime import date
 
 from django.db.models import Q
+from django.db import transaction
 from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from core.models import Role, User
+from core.serializers import UserSerializer
 
 from .models import ComentarioCurso, Curso, Leccion, MatriculaCurso, MatriculaRuta, ProgresoLeccion, Ruta, Seccion, MediatecaItem
 from .serializers import (
     ComentarioCursoSerializer,
+    CreateStudentEnrollmentSerializer,
     CursoDetalleSerializer,
     CursoSerializer,
+    generate_enrollment_access_code,
     MatriculaCursoSerializer,
     MatriculaRutaSerializer,
     ProgresoLeccionSerializer,
@@ -87,10 +92,78 @@ def can_access_course(user, curso):
     return True
 
 
+def ensure_student_role():
+    role = Role.objects.filter(name__iexact='estudiante').first()
+    if role:
+        return role
+
+    return Role.objects.create(
+        name='Estudiante',
+        description='Rol base para estudiantes',
+    )
+
+
+def extract_enrollment_fields(validated_data):
+    codigo_acceso = validated_data.get('codigo_acceso')
+    return {
+        'codigo_acceso': codigo_acceso or generate_enrollment_access_code(),
+        'fecha_inicio': validated_data.get('fecha_inicio'),
+        'fecha_fin': validated_data.get('fecha_fin'),
+        'activa': validated_data.get('activa', True),
+    }
+
+
+def build_student_user_data(validated_data, role):
+    return {
+        'name': validated_data['name'],
+        'paternal_surname': validated_data.get('paternal_surname', ''),
+        'maternal_surname': validated_data.get('maternal_surname', ''),
+        'ci': validated_data['ci'],
+        'email': validated_data['email'],
+        'phone_number': validated_data['phone_number'],
+        'university': validated_data['university'],
+        'country': validated_data['country'],
+        'role': role,
+        'status': True,
+        'is_active': True,
+    }
+
+
 class RutaViewSet(viewsets.ModelViewSet):
     queryset = Ruta.objects.all().order_by('orden', 'titulo')
     serializer_class = RutaSerializer
     permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def crear_estudiante_matriculado(self, request, pk=None):
+        if not is_admin_user(request.user):
+            return Response({'detail': 'Solo los administradores pueden realizar esta accion.'}, status=status.HTTP_403_FORBIDDEN)
+
+        ruta = self.get_object()
+        serializer = CreateStudentEnrollmentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        validated = serializer.validated_data
+        student_role = ensure_student_role()
+
+        with transaction.atomic():
+            user = User.objects.create_user(
+                password=validated['password'],
+                **build_student_user_data(validated, student_role),
+            )
+            matricula = MatriculaRuta.objects.create(
+                user=user,
+                ruta=ruta,
+                **extract_enrollment_fields(validated),
+            )
+
+        return Response(
+            {
+                'user': UserSerializer(user, context={'request': request}).data,
+                'matricula': MatriculaRutaSerializer(matricula, context={'request': request}).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class CursoViewSet(viewsets.ModelViewSet):
@@ -172,6 +245,37 @@ class CursoViewSet(viewsets.ModelViewSet):
         )
         return Response(
             ComentarioCursoSerializer(comentario, context=self.get_serializer_context()).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def crear_estudiante_matriculado(self, request, pk=None):
+        if not is_admin_user(request.user):
+            return Response({'detail': 'Solo los administradores pueden realizar esta accion.'}, status=status.HTTP_403_FORBIDDEN)
+
+        curso = self.get_object()
+        serializer = CreateStudentEnrollmentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        validated = serializer.validated_data
+        student_role = ensure_student_role()
+
+        with transaction.atomic():
+            user = User.objects.create_user(
+                password=validated['password'],
+                **build_student_user_data(validated, student_role),
+            )
+            matricula = MatriculaCurso.objects.create(
+                user=user,
+                curso=curso,
+                **extract_enrollment_fields(validated),
+            )
+
+        return Response(
+            {
+                'user': UserSerializer(user, context={'request': request}).data,
+                'matricula': MatriculaCursoSerializer(matricula, context={'request': request}).data,
+            },
             status=status.HTTP_201_CREATED,
         )
 
