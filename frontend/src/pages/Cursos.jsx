@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowRight, BookOpen, Clock3, Edit, Filter, Lock, Plus, Presentation, Sparkles, Trash2, UserPlus } from 'lucide-react'
+import { ArrowRight, BookOpen, Clock3, Edit, Filter, Lock, Plus, Presentation, Sparkles, Trash2 } from 'lucide-react'
 import Layout from '../components/Layout'
 import CursoModal from '../components/CursoModal'
-import RutaModal from '../components/RutaModal'
 import { cursosApi } from '../api/cursos'
-import { getUsers } from '../api/users'
 import { useAuth } from '../context/AuthContext'
 
 const estadoBadge = {
@@ -20,61 +18,14 @@ const nivelBadge = {
   avanzado: 'bg-fuchsia-100 text-fuchsia-700',
 }
 
-const initialMatriculaForm = {
-  tipo: 'ruta',
-  user: '',
-  ruta: '',
-  curso: '',
-  codigo_acceso: '',
-  fecha_inicio: '',
-  fecha_fin: '',
-  activa: true,
-}
-
-const extractApiError = (error, fallback) => {
-  const data = error?.response?.data
-
-  if (!data) {
-    return fallback
-  }
-
-  if (typeof data === 'string') {
-    return data
-  }
-
-  if (Array.isArray(data?.non_field_errors) && data.non_field_errors.length > 0) {
-    return data.non_field_errors[0]
-  }
-
-  const firstKey = Object.keys(data)[0]
-  if (firstKey) {
-    const value = data[firstKey]
-    if (Array.isArray(value) && value.length > 0) {
-      return value[0]
-    }
-    if (typeof value === 'string') {
-      return value
-    }
-  }
-
-  return fallback
-}
-
 export default function Cursos() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const [cursos, setCursos] = useState([])
   const [rutas, setRutas] = useState([])
-  const [users, setUsers] = useState([])
-  const [matriculasRuta, setMatriculasRuta] = useState([])
-  const [matriculasCurso, setMatriculasCurso] = useState([])
-  const [matriculaForm, setMatriculaForm] = useState(initialMatriculaForm)
-  const [matriculaError, setMatriculaError] = useState('')
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [cursoEdit, setCursoEdit] = useState(null)
-  const [rutaModalOpen, setRutaModalOpen] = useState(false)
-  const [rutaEdit, setRutaEdit] = useState(null)
 
   const [filtroRuta, setFiltroRuta] = useState('all')
   const [filtroEstado, setFiltroEstado] = useState('all')
@@ -91,37 +42,16 @@ export default function Cursos() {
       if (filtroEstado !== 'all') query.estado = filtroEstado
       if (filtroPublicado !== 'all') query.publicado = filtroPublicado === 'si'
 
-      if (isAdmin) {
-        const [rutasData, cursosData, usersResponse, matriculasRutaData, matriculasCursoData] = await Promise.all([
-          cursosApi.getRutas(),
-          cursosApi.getCursos(query),
-          getUsers(),
-          cursosApi.getMatriculasRuta(),
-          cursosApi.getMatriculasCurso(),
-        ])
+      const [rutasData, cursosData] = await Promise.all([
+        cursosApi.getRutas(),
+        cursosApi.getCursos(query),
+      ])
 
-        setRutas(Array.isArray(rutasData) ? rutasData : [])
-        setCursos(Array.isArray(cursosData) ? cursosData : [])
-        setUsers(Array.isArray(usersResponse?.data) ? usersResponse.data : [])
-        setMatriculasRuta(Array.isArray(matriculasRutaData) ? matriculasRutaData : [])
-        setMatriculasCurso(Array.isArray(matriculasCursoData) ? matriculasCursoData : [])
-      } else {
-        const [rutasData, cursosData] = await Promise.all([
-          cursosApi.getRutas(),
-          cursosApi.getCursos(query),
-        ])
-
-        setRutas(Array.isArray(rutasData) ? rutasData : [])
-        setCursos(Array.isArray(cursosData) ? cursosData : [])
-      }
+      setRutas(Array.isArray(rutasData) ? rutasData : [])
+      setCursos(Array.isArray(cursosData) ? cursosData : [])
     } catch {
       setRutas([])
       setCursos([])
-      if (isAdmin) {
-        setUsers([])
-        setMatriculasRuta([])
-        setMatriculasCurso([])
-      }
     } finally {
       setLoading(false)
     }
@@ -145,44 +75,9 @@ export default function Cursos() {
     setModalOpen(true)
   }
 
-  const handleMatriculaInput = (e) => {
-    const { name, value, type, checked } = e.target
-    const nextValue = type === 'checkbox' ? checked : value
-
-    setMatriculaForm((prev) => {
-      if (name === 'tipo') {
-        return {
-          ...prev,
-          tipo: nextValue,
-          ruta: '',
-          curso: '',
-        }
-      }
-
-      return {
-        ...prev,
-        [name]: nextValue,
-      }
-    })
-
-    if (matriculaError) {
-      setMatriculaError('')
-    }
-  }
-
   const openEdit = (curso) => {
     setCursoEdit(curso)
     setModalOpen(true)
-  }
-
-  const openCreateRuta = () => {
-    setRutaEdit(null)
-    setRutaModalOpen(true)
-  }
-
-  const openEditRuta = (ruta) => {
-    setRutaEdit(ruta)
-    setRutaModalOpen(true)
   }
 
   const handleSubmit = async (formData) => {
@@ -197,18 +92,6 @@ export default function Cursos() {
     await loadData()
   }
 
-  const handleSubmitRuta = async (formData) => {
-    if (rutaEdit) {
-      await cursosApi.updateRuta(rutaEdit.id, formData)
-    } else {
-      await cursosApi.createRuta(formData)
-    }
-
-    setRutaModalOpen(false)
-    setRutaEdit(null)
-    await loadData()
-  }
-
   const handleDeleteCurso = async (curso) => {
     const ok = window.confirm(`¿Eliminar el curso "${curso.titulo}"? Esta accion no se puede deshacer.`)
     if (!ok) {
@@ -219,110 +102,8 @@ export default function Cursos() {
     await loadData()
   }
 
-  const handleDeleteRuta = async (ruta) => {
-    const hasCourses = cursos.some((curso) => curso.ruta === ruta.id)
-    const message = hasCourses
-      ? `La ruta "${ruta.titulo}" tiene cursos asociados y tambien se eliminaran. ¿Deseas continuar?`
-      : `¿Eliminar la ruta "${ruta.titulo}"?`
-
-    const ok = window.confirm(message)
-    if (!ok) {
-      return
-    }
-
-    await cursosApi.deleteRuta(ruta.id)
-    await loadData()
-  }
-
-  const handleCreateMatricula = async (e) => {
-    e.preventDefault()
-    setMatriculaError('')
-
-    if (!matriculaForm.user) {
-      setMatriculaError('Debes seleccionar un estudiante.')
-      return
-    }
-
-    if (matriculaForm.tipo === 'ruta' && !matriculaForm.ruta) {
-      setMatriculaError('Debes seleccionar una ruta para la matricula.')
-      return
-    }
-
-    if (matriculaForm.tipo === 'curso' && !matriculaForm.curso) {
-      setMatriculaError('Debes seleccionar un curso para la matricula.')
-      return
-    }
-
-    if (matriculaForm.fecha_inicio && matriculaForm.fecha_fin && matriculaForm.fecha_fin < matriculaForm.fecha_inicio) {
-      setMatriculaError('La fecha fin no puede ser menor que la fecha inicio.')
-      return
-    }
-
-    try {
-      const payload = {
-        user: matriculaForm.user,
-        codigo_acceso: matriculaForm.codigo_acceso,
-        fecha_inicio: matriculaForm.fecha_inicio,
-        fecha_fin: matriculaForm.fecha_fin,
-        activa: matriculaForm.activa,
-      }
-
-      if (matriculaForm.tipo === 'ruta') {
-        await cursosApi.createMatriculaRuta({ ...payload, ruta: matriculaForm.ruta })
-      } else {
-        await cursosApi.createMatriculaCurso({ ...payload, curso: matriculaForm.curso })
-      }
-
-      setMatriculaForm((prev) => ({
-        ...initialMatriculaForm,
-        tipo: prev.tipo,
-      }))
-      await loadData()
-    } catch (error) {
-      setMatriculaError(extractApiError(error, 'No se pudo crear la matricula.'))
-    }
-  }
-
-  const handleToggleMatriculaRuta = async (matricula) => {
-    await cursosApi.updateMatriculaRuta(matricula.id, { activa: !matricula.activa })
-    await loadData()
-  }
-
-  const handleToggleMatriculaCurso = async (matricula) => {
-    await cursosApi.updateMatriculaCurso(matricula.id, { activa: !matricula.activa })
-    await loadData()
-  }
-
-  const handleDeleteMatriculaRuta = async (matricula) => {
-    const ok = window.confirm(`¿Eliminar la matricula de ${matricula.user_nombre || matricula.user_email}?`)
-    if (!ok) return
-
-    await cursosApi.deleteMatriculaRuta(matricula.id)
-    await loadData()
-  }
-
-  const handleDeleteMatriculaCurso = async (matricula) => {
-    const ok = window.confirm(`¿Eliminar la matricula de ${matricula.user_nombre || matricula.user_email}?`)
-    if (!ok) return
-
-    await cursosApi.deleteMatriculaCurso(matricula.id)
-    await loadData()
-  }
-
   const rutaTitle = (rutaId) => {
     return rutas.find((ruta) => ruta.id === rutaId)?.titulo || 'Ruta'
-  }
-
-  const userLabel = (matricula) => {
-    if (matricula.user_nombre) {
-      return matricula.user_nombre
-    }
-
-    if (matricula.user_email) {
-      return matricula.user_email
-    }
-
-    return `Usuario ${matricula.user}`
   }
 
   return (
@@ -393,252 +174,6 @@ export default function Cursos() {
             )}
           </div>
         </div>
-
-        {isAdmin && (
-          <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-base font-semibold text-gray-800">Rutas</h2>
-                <p className="text-xs text-gray-500">Gestiona las rutas academicas visibles en Mis Cursos.</p>
-              </div>
-              <button
-                onClick={openCreateRuta}
-                className="px-3 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition flex items-center gap-2 text-xs font-medium"
-              >
-                <Plus size={14} />
-                Nueva Ruta
-              </button>
-            </div>
-
-            {rutas.length === 0 ? (
-              <p className="text-sm text-gray-500">No hay rutas registradas.</p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                {rutas.map((ruta) => (
-                  <div key={ruta.id} className="border border-gray-200 rounded-xl p-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">{ruta.titulo}</p>
-                        <p className="text-xs text-gray-500 line-clamp-2">{ruta.descripcion || 'Sin descripcion'}</p>
-                      </div>
-                      <span className={`text-[10px] px-2 py-1 rounded-full ${ruta.publicado ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                        {ruta.publicado ? 'Publicada' : 'Borrador'}
-                      </span>
-                    </div>
-
-                    <div className="mt-3 flex items-center justify-between">
-                      <span className="text-xs text-gray-500">Orden #{ruta.orden}</span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => openEditRuta(ruta)}
-                          className="px-2.5 py-1.5 rounded-lg text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 transition inline-flex items-center gap-1"
-                        >
-                          <Edit size={12} /> Editar
-                        </button>
-                        <button
-                          onClick={() => handleDeleteRuta(ruta)}
-                          className="px-2.5 py-1.5 rounded-lg text-xs bg-red-100 text-red-700 hover:bg-red-200 transition inline-flex items-center gap-1"
-                        >
-                          <Trash2 size={12} /> Eliminar
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {isAdmin && (
-          <div className="bg-white rounded-2xl border border-gray-200 p-4 space-y-4">
-            <div>
-              <h2 className="text-base font-semibold text-gray-800">Matriculas</h2>
-              <p className="text-xs text-gray-500">Asigna estudiantes por ruta o por curso.</p>
-            </div>
-
-            <form onSubmit={handleCreateMatricula} className="space-y-3">
-              {matriculaError && (
-                <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                  {matriculaError}
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <select
-                  name="tipo"
-                  value={matriculaForm.tipo}
-                  onChange={handleMatriculaInput}
-                  className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
-                >
-                  <option value="ruta">Matricular por ruta</option>
-                  <option value="curso">Matricular por curso</option>
-                </select>
-
-                <select
-                  name="user"
-                  value={matriculaForm.user}
-                  onChange={handleMatriculaInput}
-                  className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
-                  required
-                >
-                  <option value="">Selecciona estudiante</option>
-                  {users.map((currentUser) => (
-                    <option key={currentUser.id} value={currentUser.id}>
-                      {currentUser.name} - {currentUser.email}
-                    </option>
-                  ))}
-                </select>
-
-                {matriculaForm.tipo === 'ruta' ? (
-                  <select
-                    name="ruta"
-                    value={matriculaForm.ruta}
-                    onChange={handleMatriculaInput}
-                    className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
-                    required
-                  >
-                    <option value="">Selecciona ruta</option>
-                    {rutas.map((ruta) => (
-                      <option key={ruta.id} value={ruta.id}>
-                        {ruta.titulo}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <select
-                    name="curso"
-                    value={matriculaForm.curso}
-                    onChange={handleMatriculaInput}
-                    className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
-                    required
-                  >
-                    <option value="">Selecciona curso</option>
-                    {cursos.map((curso) => (
-                      <option key={curso.id} value={curso.id}>
-                        {curso.titulo}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <input
-                  type="text"
-                  name="codigo_acceso"
-                  value={matriculaForm.codigo_acceso}
-                  onChange={handleMatriculaInput}
-                  placeholder="Codigo de acceso (opcional)"
-                  className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
-                />
-                <input
-                  type="date"
-                  name="fecha_inicio"
-                  value={matriculaForm.fecha_inicio}
-                  onChange={handleMatriculaInput}
-                  className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
-                />
-                <input
-                  type="date"
-                  name="fecha_fin"
-                  value={matriculaForm.fecha_fin}
-                  onChange={handleMatriculaInput}
-                  className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
-                />
-                <label className="inline-flex items-center gap-2 text-sm text-gray-700 px-2">
-                  <input
-                    type="checkbox"
-                    name="activa"
-                    checked={matriculaForm.activa}
-                    onChange={handleMatriculaInput}
-                  />
-                  Activa
-                </label>
-              </div>
-
-              <button
-                type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition inline-flex items-center gap-2 text-sm font-medium"
-              >
-                <UserPlus size={16} />
-                Matricular Estudiante
-              </button>
-            </form>
-
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-              <div className="border border-gray-200 rounded-xl overflow-hidden">
-                <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-700">
-                  Matriculas por Ruta ({matriculasRuta.length})
-                </div>
-                {matriculasRuta.length === 0 ? (
-                  <p className="p-3 text-xs text-gray-500">No hay matriculas por ruta.</p>
-                ) : (
-                  <div className="divide-y divide-gray-100">
-                    {matriculasRuta.map((matricula) => (
-                      <div key={matricula.id} className="p-3 flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-medium text-gray-800">{userLabel(matricula)}</p>
-                          <p className="text-xs text-gray-500">{matricula.user_email}</p>
-                          <p className="text-xs text-gray-600 mt-1">Ruta: {matricula.ruta_titulo}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleToggleMatriculaRuta(matricula)}
-                            className={`px-2.5 py-1.5 rounded-lg text-xs transition ${matricula.activa ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'}`}
-                          >
-                            {matricula.activa ? 'Desactivar' : 'Activar'}
-                          </button>
-                          <button
-                            onClick={() => handleDeleteMatriculaRuta(matricula)}
-                            className="px-2.5 py-1.5 rounded-lg text-xs bg-red-100 text-red-700 hover:bg-red-200 transition inline-flex items-center gap-1"
-                          >
-                            <Trash2 size={12} /> Eliminar
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="border border-gray-200 rounded-xl overflow-hidden">
-                <div className="px-3 py-2 bg-gray-50 border-b border-gray-200 text-sm font-semibold text-gray-700">
-                  Matriculas por Curso ({matriculasCurso.length})
-                </div>
-                {matriculasCurso.length === 0 ? (
-                  <p className="p-3 text-xs text-gray-500">No hay matriculas por curso.</p>
-                ) : (
-                  <div className="divide-y divide-gray-100">
-                    {matriculasCurso.map((matricula) => (
-                      <div key={matricula.id} className="p-3 flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-medium text-gray-800">{userLabel(matricula)}</p>
-                          <p className="text-xs text-gray-500">{matricula.user_email}</p>
-                          <p className="text-xs text-gray-600 mt-1">Curso: {matricula.curso_titulo}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleToggleMatriculaCurso(matricula)}
-                            className={`px-2.5 py-1.5 rounded-lg text-xs transition ${matricula.activa ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'}`}
-                          >
-                            {matricula.activa ? 'Desactivar' : 'Activar'}
-                          </button>
-                          <button
-                            onClick={() => handleDeleteMatriculaCurso(matricula)}
-                            className="px-2.5 py-1.5 rounded-lg text-xs bg-red-100 text-red-700 hover:bg-red-200 transition inline-flex items-center gap-1"
-                          >
-                            <Trash2 size={12} /> Eliminar
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
 
         {loading ? (
           <div className="flex justify-center items-center py-12">
@@ -779,18 +314,6 @@ export default function Cursos() {
             onClosed={() => {
               setModalOpen(false)
               setCursoEdit(null)
-            }}
-          />
-        )}
-
-        {rutaModalOpen && isAdmin && (
-          <RutaModal
-            key={rutaEdit?.id || 'new-route'}
-            rutaEdit={rutaEdit}
-            onSubmit={handleSubmitRuta}
-            onClosed={() => {
-              setRutaModalOpen(false)
-              setRutaEdit(null)
             }}
           />
         )}

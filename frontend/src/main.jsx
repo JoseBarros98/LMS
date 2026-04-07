@@ -14,6 +14,8 @@ import Categorias from './pages/Categorias'
 import Cursos from './pages/Cursos'
 import CursoDetalle from './pages/CursoDetalle'
 import Recursos from './pages/Recursos'
+import Matriculas from './pages/Matriculas'
+import Rutas from './pages/Rutas'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -63,6 +65,18 @@ createRoot(document.getElementById('root')).render(
           <Route path="/courses" element={
             <PrivateRoute>
               <Cursos />
+            </PrivateRoute>
+          } />
+
+          <Route path="/matriculas" element={
+            <PrivateRoute>
+              <Matriculas />
+            </PrivateRoute>
+          } />
+
+          <Route path="/rutas" element={
+            <PrivateRoute>
+              <Rutas />
             </PrivateRoute>
           } />
 

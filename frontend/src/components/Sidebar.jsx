@@ -2,7 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import {
     LayoutDashboard, Calendar, BookOpen, Monitor, FolderOpen, Layers,
     Ticket, ChevronLeft, ChevronRight,
-    User, ShieldCheck, Tag
+    User, ShieldCheck, Tag, UserPlus, Map
 } from 'lucide-react'
 
 const menu = [
@@ -16,7 +16,9 @@ const menu = [
     {
         section: 'ACADEMIA',
         items: [
-            { label: 'Mis Cursos', icon: BookOpen, path: '/courses' },
+            { label: 'Cursos', icon: BookOpen, path: '/courses' },
+            { label: 'Matrículas', icon: UserPlus, path: '/matriculas' },
+            { label: 'Rutas', icon: Map, path: '/rutas' },
             { label: 'Simuladores', icon: Monitor, path: '/simuladores' },
             { label: 'Recursos', icon: FolderOpen, path: '/recursos' },
         ]
