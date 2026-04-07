@@ -131,6 +131,11 @@ export const cursosApi = {
     return response.data
   },
 
+  getRecursos: async (params = {}) => {
+    const response = await api.get('/mediateca-item/', { params })
+    return response.data
+  },
+
   createMediatecaItem: (data) => {
     if (data._file) {
       const formData = new FormData()

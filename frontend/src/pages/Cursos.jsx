@@ -677,7 +677,7 @@ export default function Cursos() {
                         </div>
                       )}
 
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent" />
+                      <div className="absolute inset-0 bg-linear-to-t from-black/40 via-black/10 to-transparent" />
 
                       <span className={`absolute top-3 left-3 px-2 py-1 rounded-full text-xs font-medium ${nivelBadge[curso.nivel] || nivelBadge.avanzado}`}>
                         {curso.nivel_label || curso.nivel}

@@ -231,6 +231,8 @@ class SeccionDetalleSerializer(serializers.ModelSerializer):
 class MediatecaItemSerializer(serializers.ModelSerializer):
     tipo_label = serializers.CharField(source='get_tipo_display', read_only=True)
     curso = serializers.PrimaryKeyRelatedField(queryset=Curso.objects.all(), write_only=True, required=False)
+    curso_id = serializers.SerializerMethodField()
+    curso_titulo = serializers.SerializerMethodField()
     parent = serializers.PrimaryKeyRelatedField(queryset=MediatecaItem.objects.all(), allow_null=True, required=False)
     parent_titulo = serializers.CharField(source='parent.titulo', read_only=True)
     children_count = serializers.SerializerMethodField()
@@ -241,6 +243,8 @@ class MediatecaItemSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'curso',
+            'curso_id',
+            'curso_titulo',
             'parent',
             'parent_titulo',
             'titulo',
@@ -256,6 +260,12 @@ class MediatecaItemSerializer(serializers.ModelSerializer):
 
     def get_children_count(self, obj):
         return obj.children.count()
+
+    def get_curso_id(self, obj):
+        return obj.curso_id
+
+    def get_curso_titulo(self, obj):
+        return obj.curso.titulo if obj.curso_id else ''
 
     def validate(self, attrs):
         curso = attrs.get('curso')

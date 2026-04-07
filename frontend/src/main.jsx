@@ -13,6 +13,7 @@ import Tickets from './pages/Tickets'
 import Categorias from './pages/Categorias'
 import Cursos from './pages/Cursos'
 import CursoDetalle from './pages/CursoDetalle'
+import Recursos from './pages/Recursos'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -68,6 +69,12 @@ createRoot(document.getElementById('root')).render(
           <Route path="/courses/:id" element={
             <PrivateRoute>
               <CursoDetalle />
+            </PrivateRoute>
+          } />
+
+          <Route path="/recursos" element={
+            <PrivateRoute>
+              <Recursos />
             </PrivateRoute>
           } />
         </Routes>

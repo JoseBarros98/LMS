@@ -146,7 +146,7 @@ export default function App() {
                   >
                     <div className="relative h-48 bg-gray-100">
                       <img src={portada} alt={curso.titulo} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent" />
+                      <div className="absolute inset-0 bg-linear-to-t from-black/40 via-black/10 to-transparent" />
                       <div className="absolute top-3 left-3 flex flex-wrap gap-2 pr-4">
                         <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase backdrop-blur-sm ${nivelBadge[curso.nivel] || 'bg-gray-100 text-gray-700'}`}>
                           {curso.nivel_label || curso.nivel}
