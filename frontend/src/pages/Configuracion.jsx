@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { updateUser } from '../api/users'
+import { updateMyProfile } from '../api/users'
 import { notificationsApi } from '../api/notifications'
 import Layout from '../components/Layout'
 import { User, Save, Key, Shield, Lock, Computer, Bell, Check, CheckCheck, BellOff, Ticket, RefreshCw, Eye, Map, BookOpen, Calendar, BadgeCheck } from 'lucide-react'
@@ -108,18 +108,30 @@ export default function Configuracion() {
 
     try {
       const formDataToSend = new FormData()
-      formDataToSend.append('name', formData.name)
-      formDataToSend.append('paternal_surname', formData.paternal_surname)
-      formDataToSend.append('maternal_surname', formData.maternal_surname)
-      formDataToSend.append('phone_number', formData.phone_number)
-      formDataToSend.append('university', formData.university)
-      formDataToSend.append('country', formData.country)
+
+      const appendIfNotEmpty = (key, value) => {
+        if (typeof value === 'string') {
+          const trimmed = value.trim()
+          if (trimmed !== '') formDataToSend.append(key, trimmed)
+          return
+        }
+        if (value !== undefined && value !== null) {
+          formDataToSend.append(key, value)
+        }
+      }
+
+      appendIfNotEmpty('name', formData.name)
+      appendIfNotEmpty('paternal_surname', formData.paternal_surname)
+      appendIfNotEmpty('maternal_surname', formData.maternal_surname)
+      appendIfNotEmpty('phone_number', formData.phone_number)
+      appendIfNotEmpty('university', formData.university)
+      appendIfNotEmpty('country', formData.country)
       
       if (imagenArchivo) {
         formDataToSend.append('profile_picture', imagenArchivo)
       }
 
-      await updateUser(user.id, formDataToSend)
+      await updateMyProfile(formDataToSend)
       
       // Actualizar el contexto de autenticación
       const updatedUser = { ...user, ...formData }
@@ -130,8 +142,18 @@ export default function Configuracion() {
       
       showSuccess('Perfil actualizado correctamente.')
     } catch (error) {
-      console.error('Error al actualizar perfil:', error)
-      showError('Error al actualizar el perfil.')
+      const serverError = error?.response?.data
+      console.error('Error al actualizar perfil:', serverError || error)
+
+      if (serverError && typeof serverError === 'object') {
+        const firstKey = Object.keys(serverError)[0]
+        const firstMessage = Array.isArray(serverError[firstKey])
+          ? serverError[firstKey][0]
+          : serverError[firstKey]
+        showError(firstMessage || 'Error al actualizar el perfil.')
+      } else {
+        showError('Error al actualizar el perfil.')
+      }
     } finally {
       setLoading(false)
     }

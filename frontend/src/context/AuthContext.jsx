@@ -1,5 +1,6 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { login as loginApi } from '../api/auth'
+import { fetchMe } from '../api/auth'
 
 const AuthContext = createContext()
 
@@ -21,8 +22,17 @@ export function AuthProvider ({ children }) {
             setToken(access)
 
             const payload = JSON.parse(atob(access.split('.')[1]))
-            setUser(payload)
-            localStorage.setItem('user', JSON.stringify(payload))
+
+            // Intentar cargar el perfil completo para evitar campos faltantes del JWT.
+            try {
+                const meRes = await fetchMe()
+                const fullUser = meRes.data
+                setUser(fullUser)
+                localStorage.setItem('user', JSON.stringify(fullUser))
+            } catch {
+                setUser(payload)
+                localStorage.setItem('user', JSON.stringify(payload))
+            }
         } catch (error) {
             console.log('Error detallado:', error.response?.data)  // ← agrega esto
             throw error
@@ -52,6 +62,12 @@ export function AuthProvider ({ children }) {
         setUser(updatedUserData)
         localStorage.setItem('user', JSON.stringify(updatedUserData))
     }
+
+    useEffect(() => {
+        if (token) {
+            refreshUser()
+        }
+    }, [token])
 
     return (
         <AuthContext.Provider value={{ user, token, login, logout, refreshUser, updateUser }}>

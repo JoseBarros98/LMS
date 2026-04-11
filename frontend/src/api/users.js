@@ -25,4 +25,8 @@ export const updateUser = (id, data) => api.patch(`/users/${id}/`, data, {
     headers: {'Content-Type': 'multipart/form-data'}
 })
 
+export const updateMyProfile = (data) => api.patch('/me/', data, {
+    headers: {'Content-Type': 'multipart/form-data'}
+})
+
 export const deleteUser = (id) => api.delete(`/users/${id}/`)
