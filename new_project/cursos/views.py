@@ -16,7 +16,6 @@ from .serializers import (
     CreateStudentEnrollmentSerializer,
     CursoDetalleSerializer,
     CursoSerializer,
-    generate_enrollment_access_code,
     MatriculaCursoSerializer,
     MatriculaRutaSerializer,
     ProgresoLeccionSerializer,
@@ -99,13 +98,17 @@ def ensure_student_role():
 
 
 def extract_enrollment_fields(validated_data):
-    codigo_acceso = validated_data.get('codigo_acceso')
-    return {
-        'codigo_acceso': codigo_acceso or generate_enrollment_access_code(),
-        'fecha_inicio': validated_data.get('fecha_inicio'),
-        'fecha_fin': validated_data.get('fecha_fin'),
+    payload = {
+        'plan_pago': validated_data.get('plan_pago', MatriculaRuta.PLAN_CONTADO),
         'activa': validated_data.get('activa', True),
     }
+
+    # Avoid sending explicit nulls to serializers for optional fields.
+    for key in ('codigo_acceso', 'numero_cuotas', 'fechas_pago', 'fecha_inicio', 'fecha_fin'):
+        if key in validated_data and validated_data.get(key) is not None:
+            payload[key] = validated_data.get(key)
+
+    return payload
 
 
 def build_student_user_data(validated_data, role):
@@ -147,7 +150,10 @@ class RutaViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Solo los administradores pueden realizar esta accion.'}, status=status.HTTP_403_FORBIDDEN)
 
         ruta = self.get_object()
-        serializer = CreateStudentEnrollmentSerializer(data=request.data)
+        serializer = CreateStudentEnrollmentSerializer(
+            data=request.data,
+            context={'enrollment_type': 'ruta'},
+        )
         serializer.is_valid(raise_exception=True)
 
         validated = serializer.validated_data
@@ -158,11 +164,14 @@ class RutaViewSet(viewsets.ModelViewSet):
                 password=validated['password'],
                 **build_student_user_data(validated, student_role),
             )
-            matricula = MatriculaRuta.objects.create(
-                user=user,
-                ruta=ruta,
+            enrollment_payload = {
+                'user': user.id,
+                'ruta': ruta.id,
                 **extract_enrollment_fields(validated),
-            )
+            }
+            matricula_serializer = MatriculaRutaSerializer(data=enrollment_payload, context={'request': request})
+            matricula_serializer.is_valid(raise_exception=True)
+            matricula = matricula_serializer.save(created_by=request.user)
 
         return Response(
             {
@@ -255,7 +264,10 @@ class CursoViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Solo los administradores pueden realizar esta accion.'}, status=status.HTTP_403_FORBIDDEN)
 
         curso = self.get_object()
-        serializer = CreateStudentEnrollmentSerializer(data=request.data)
+        serializer = CreateStudentEnrollmentSerializer(
+            data=request.data,
+            context={'enrollment_type': 'curso'},
+        )
         serializer.is_valid(raise_exception=True)
 
         validated = serializer.validated_data
@@ -266,11 +278,14 @@ class CursoViewSet(viewsets.ModelViewSet):
                 password=validated['password'],
                 **build_student_user_data(validated, student_role),
             )
-            matricula = MatriculaCurso.objects.create(
-                user=user,
-                curso=curso,
+            enrollment_payload = {
+                'user': user.id,
+                'curso': curso.id,
                 **extract_enrollment_fields(validated),
-            )
+            }
+            matricula_serializer = MatriculaCursoSerializer(data=enrollment_payload, context={'request': request})
+            matricula_serializer.is_valid(raise_exception=True)
+            matricula = matricula_serializer.save(created_by=request.user)
 
         return Response(
             {
@@ -286,7 +301,7 @@ class MatriculaRutaViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
 
     def get_queryset(self):
-        queryset = MatriculaRuta.objects.select_related('user', 'ruta').all()
+        queryset = MatriculaRuta.objects.select_related('user', 'created_by', 'ruta').prefetch_related('cuotas_pago').all()
         user_id = self.request.query_params.get('user_id')
         ruta_id = self.request.query_params.get('ruta_id')
         activa = self.request.query_params.get('activa')
@@ -305,13 +320,16 @@ class MatriculaRutaViewSet(viewsets.ModelViewSet):
 
         return queryset.order_by('-created_at')
 
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
 
 class MatriculaCursoViewSet(viewsets.ModelViewSet):
     serializer_class = MatriculaCursoSerializer
     permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
 
     def get_queryset(self):
-        queryset = MatriculaCurso.objects.select_related('user', 'curso', 'curso__ruta').all()
+        queryset = MatriculaCurso.objects.select_related('user', 'created_by', 'curso', 'curso__ruta').prefetch_related('cuotas_pago').all()
         user_id = self.request.query_params.get('user_id')
         curso_id = self.request.query_params.get('curso_id')
         activa = self.request.query_params.get('activa')
@@ -329,6 +347,9 @@ class MatriculaCursoViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(activa=str(activa).lower() in {'1', 'true', 'yes'})
 
         return queryset.order_by('-created_at')
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
 
 
 class ProgresoLeccionViewSet(viewsets.ModelViewSet):

@@ -1583,6 +1583,7 @@ export default function CursoDetalle() {
           submitLabel="Crear y matricular"
           loading={submittingStudent}
           error={studentEnrollmentError}
+          enrollmentType="curso"
           onSubmit={handleCreateStudentAndEnroll}
           onClose={() => {
             if (submittingStudent) return

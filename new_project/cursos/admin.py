@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import ComentarioCurso, Curso, Leccion, MatriculaCurso, MatriculaRuta, MediatecaItem, ProgresoLeccion, Ruta, Seccion
+from .models import ComentarioCurso, CuotaPagoMatricula, Curso, Leccion, MatriculaCurso, MatriculaRuta, MediatecaItem, ProgresoLeccion, Ruta, Seccion
 
 
 class LeccionInline(admin.TabularInline):
@@ -51,7 +51,7 @@ class LeccionAdmin(admin.ModelAdmin):
 
 @admin.register(MatriculaRuta)
 class MatriculaRutaAdmin(admin.ModelAdmin):
-    list_display = ('user', 'ruta', 'activa', 'fecha_inicio', 'fecha_fin', 'created_at')
+    list_display = ('user', 'created_by', 'ruta', 'plan_pago', 'numero_cuotas', 'monto_total', 'activa', 'fecha_inicio', 'fecha_fin', 'created_at')
     list_filter = ('activa',)
     search_fields = ('user__email', 'user__name', 'ruta__titulo', 'codigo_acceso')
     ordering = ('-created_at',)
@@ -59,10 +59,18 @@ class MatriculaRutaAdmin(admin.ModelAdmin):
 
 @admin.register(MatriculaCurso)
 class MatriculaCursoAdmin(admin.ModelAdmin):
-    list_display = ('user', 'curso', 'activa', 'fecha_inicio', 'fecha_fin', 'created_at')
+    list_display = ('user', 'created_by', 'curso', 'plan_pago', 'numero_cuotas', 'monto_total', 'activa', 'fecha_inicio', 'fecha_fin', 'created_at')
     list_filter = ('activa',)
     search_fields = ('user__email', 'user__name', 'curso__titulo', 'codigo_acceso')
     ordering = ('-created_at',)
+
+
+@admin.register(CuotaPagoMatricula)
+class CuotaPagoMatriculaAdmin(admin.ModelAdmin):
+    list_display = ('numero', 'monto', 'fecha_pago', 'estado', 'matricula_ruta', 'matricula_curso')
+    list_filter = ('estado',)
+    search_fields = ('matricula_ruta__user__email', 'matricula_curso__user__email')
+    ordering = ('fecha_pago', 'numero')
 
 
 @admin.register(ProgresoLeccion)

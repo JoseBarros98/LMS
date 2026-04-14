@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { UserPlus, X } from 'lucide-react'
 
 const initialForm = {
@@ -11,6 +11,8 @@ const initialForm = {
   university: '',
   country: '',
   password: '',
+  plan_pago: 'contado',
+  numero_cuotas: 2,
   fecha_inicio: '',
   fecha_fin: '',
   activa: true,
@@ -22,10 +24,29 @@ export default function StudentEnrollmentModal({
   submitLabel,
   loading = false,
   error = '',
+  enrollmentType = 'ruta',
   onSubmit,
   onClose,
 }) {
   const [form, setForm] = useState(initialForm)
+
+  useEffect(() => {
+    setForm((previous) => {
+      if (enrollmentType === 'curso') {
+        return {
+          ...previous,
+          plan_pago: 'contado',
+          numero_cuotas: 1,
+        }
+      }
+
+      const nextCuotas = previous.numero_cuotas === 1 ? 1 : 2
+      return {
+        ...previous,
+        numero_cuotas: nextCuotas,
+      }
+    })
+  }, [enrollmentType])
 
   const canSubmit = useMemo(() => {
     return (
@@ -41,10 +62,30 @@ export default function StudentEnrollmentModal({
 
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target
-    setForm((previous) => ({
-      ...previous,
-      [name]: type === 'checkbox' ? checked : value,
-    }))
+    const nextValue = type === 'checkbox' ? checked : value
+
+    setForm((previous) => {
+      if (name === 'plan_pago') {
+        if (enrollmentType === 'curso') {
+          return {
+            ...previous,
+            plan_pago: 'contado',
+            numero_cuotas: 1,
+          }
+        }
+
+        return {
+          ...previous,
+          plan_pago: nextValue,
+          numero_cuotas: nextValue === 'contado' ? previous.numero_cuotas : previous.numero_cuotas,
+        }
+      }
+
+      return {
+        ...previous,
+        [name]: nextValue,
+      }
+    })
   }
 
   const handleSubmit = async (event) => {
@@ -180,6 +221,47 @@ export default function StudentEnrollmentModal({
           </div>
 
           <div className="border-t border-gray-100 pt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Plan de pago</label>
+              <select
+                name="plan_pago"
+                value={enrollmentType === 'curso' ? 'contado' : form.plan_pago}
+                onChange={handleChange}
+                disabled={enrollmentType === 'curso'}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100"
+              >
+                <option value="contado">Contado</option>
+                {enrollmentType === 'ruta' && <option value="credito">Credito</option>}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Numero de pagos</label>
+              {enrollmentType === 'curso' ? (
+                <input
+                  value="1"
+                  disabled
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-100"
+                />
+              ) : form.plan_pago === 'contado' ? (
+                <select
+                  name="numero_cuotas"
+                  value={form.numero_cuotas}
+                  onChange={handleChange}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                >
+                  <option value={1}>1 pago</option>
+                  <option value={2}>2 pagos</option>
+                </select>
+              ) : (
+                <input
+                  value="Se calcula automaticamente segun duracion"
+                  disabled
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-100"
+                />
+              )}
+            </div>
+
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Fecha inicio</label>
               <input

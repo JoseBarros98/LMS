@@ -11,6 +11,8 @@ const initialMatriculaForm = {
   user: '',
   ruta: '',
   curso: '',
+  plan_pago: 'contado',
+  numero_cuotas: 2,
   codigo_acceso: '',
   fecha_inicio: '',
   fecha_fin: '',
@@ -26,6 +28,8 @@ export default function Matriculas() {
   const [matriculasCurso, setMatriculasCurso] = useState([])
   const [matriculaForm, setMatriculaForm] = useState(initialMatriculaForm)
   const [matriculaError, setMatriculaError] = useState('')
+  const [paymentEditor, setPaymentEditor] = useState(null)
+  const [savingPaymentDates, setSavingPaymentDates] = useState(false)
   const [loading, setLoading] = useState(true)
 
   const isAdmin = user?.role?.name?.toLowerCase() === 'administrador'
@@ -81,11 +85,30 @@ export default function Matriculas() {
 
     setMatriculaForm((prev) => {
       if (name === 'tipo') {
+        const isCourse = nextValue === 'curso'
         return {
           ...prev,
           tipo: nextValue,
           ruta: '',
           curso: '',
+          plan_pago: isCourse ? 'contado' : prev.plan_pago,
+          numero_cuotas: isCourse ? 1 : 2,
+        }
+      }
+
+      if (name === 'plan_pago') {
+        if (prev.tipo === 'curso') {
+          return {
+            ...prev,
+            plan_pago: 'contado',
+            numero_cuotas: 1,
+          }
+        }
+
+        return {
+          ...prev,
+          plan_pago: nextValue,
+          numero_cuotas: nextValue === 'contado' ? prev.numero_cuotas : prev.numero_cuotas,
         }
       }
 
@@ -131,6 +154,8 @@ export default function Matriculas() {
     try {
       const payload = {
         user: matriculaForm.user,
+        plan_pago: matriculaForm.tipo === 'curso' ? 'contado' : matriculaForm.plan_pago,
+        numero_cuotas: matriculaForm.tipo === 'curso' ? 1 : Number(matriculaForm.numero_cuotas || 1),
         codigo_acceso: matriculaForm.codigo_acceso,
         fecha_inicio: matriculaForm.fecha_inicio,
         fecha_fin: matriculaForm.fecha_fin,
@@ -206,6 +231,55 @@ export default function Matriculas() {
     if (matricula.user_nombre) return matricula.user_nombre
     if (matricula.user_email) return matricula.user_email
     return `Usuario ${matricula.user}`
+  }
+
+  const openPaymentEditor = (tipo, matricula) => {
+    const cuotas = Array.isArray(matricula.cuotas) ? [...matricula.cuotas].sort((a, b) => a.numero - b.numero) : []
+    if (cuotas.length === 0) {
+      showError('Esta matricula aun no tiene cuotas generadas.')
+      return
+    }
+
+    setPaymentEditor({
+      tipo,
+      id: matricula.id,
+      referencia: tipo === 'ruta' ? matricula.ruta_titulo : matricula.curso_titulo,
+      plan_pago: matricula.plan_pago,
+      fechas_pago: cuotas.map((cuota) => cuota.fecha_pago || ''),
+    })
+  }
+
+  const updatePaymentDate = (index, value) => {
+    setPaymentEditor((prev) => {
+      if (!prev) return prev
+      const fechas = [...prev.fechas_pago]
+      fechas[index] = value
+      return { ...prev, fechas_pago: fechas }
+    })
+  }
+
+  const savePaymentDates = async () => {
+    if (!paymentEditor) return
+    if (paymentEditor.fechas_pago.some((value) => !value)) {
+      showError('Debes completar todas las fechas de pago.')
+      return
+    }
+
+    try {
+      setSavingPaymentDates(true)
+      if (paymentEditor.tipo === 'ruta') {
+        await cursosApi.updateMatriculaRuta(paymentEditor.id, { fechas_pago: paymentEditor.fechas_pago })
+      } else {
+        await cursosApi.updateMatriculaCurso(paymentEditor.id, { fechas_pago: paymentEditor.fechas_pago })
+      }
+      showSuccess('Fechas de pago actualizadas correctamente.')
+      setPaymentEditor(null)
+      await loadData()
+    } catch (error) {
+      showError(getApiErrorMessage(error, 'No se pudieron actualizar las fechas de pago.'))
+    } finally {
+      setSavingPaymentDates(false)
+    }
   }
 
   return (
@@ -289,6 +363,43 @@ export default function Matriculas() {
                 )}
               </div>
 
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <select
+                  name="plan_pago"
+                  value={matriculaForm.tipo === 'curso' ? 'contado' : matriculaForm.plan_pago}
+                  onChange={handleMatriculaInput}
+                  disabled={matriculaForm.tipo === 'curso'}
+                  className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm disabled:bg-gray-100"
+                >
+                  <option value="contado">Plan contado</option>
+                  {matriculaForm.tipo === 'ruta' && <option value="credito">Plan credito</option>}
+                </select>
+
+                {matriculaForm.tipo === 'curso' ? (
+                  <input
+                    value="1 pago"
+                    disabled
+                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-100"
+                  />
+                ) : matriculaForm.plan_pago === 'contado' ? (
+                  <select
+                    name="numero_cuotas"
+                    value={matriculaForm.numero_cuotas}
+                    onChange={handleMatriculaInput}
+                    className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
+                  >
+                    <option value={1}>1 pago</option>
+                    <option value={2}>2 pagos</option>
+                  </select>
+                ) : (
+                  <input
+                    value="Cuotas automaticas por duracion"
+                    disabled
+                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-100"
+                  />
+                )}
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <input
                   type="text"
@@ -354,8 +465,17 @@ export default function Matriculas() {
                         <p className="text-sm font-medium text-gray-800">{userLabel(matricula)}</p>
                         <p className="text-xs text-gray-500">{matricula.user_email}</p>
                         <p className="text-xs text-gray-600 mt-1">Ruta: {matricula.ruta_titulo}</p>
+                        <p className="text-xs text-gray-600">Plan: {matricula.plan_pago} - {matricula.numero_cuotas} pago(s)</p>
                       </div>
                       <div className="flex items-center gap-2">
+                        {isAdmin && (
+                          <button
+                            onClick={() => openPaymentEditor('ruta', matricula)}
+                            className="px-2.5 py-1.5 rounded-lg text-xs bg-sky-100 text-sky-700 hover:bg-sky-200 transition"
+                          >
+                            Editar pagos
+                          </button>
+                        )}
                         {isAdmin && (
                           <button
                             onClick={() => handleToggleMatriculaRuta(matricula)}
@@ -393,8 +513,17 @@ export default function Matriculas() {
                         <p className="text-sm font-medium text-gray-800">{userLabel(matricula)}</p>
                         <p className="text-xs text-gray-500">{matricula.user_email}</p>
                         <p className="text-xs text-gray-600 mt-1">Curso: {matricula.curso_titulo}</p>
+                        <p className="text-xs text-gray-600">Plan: {matricula.plan_pago} - {matricula.numero_cuotas} pago(s)</p>
                       </div>
                       <div className="flex items-center gap-2">
+                        {isAdmin && (
+                          <button
+                            onClick={() => openPaymentEditor('curso', matricula)}
+                            className="px-2.5 py-1.5 rounded-lg text-xs bg-sky-100 text-sky-700 hover:bg-sky-200 transition"
+                          >
+                            Editar pagos
+                          </button>
+                        )}
                         {isAdmin && (
                           <button
                             onClick={() => handleToggleMatriculaCurso(matricula)}
@@ -416,6 +545,52 @@ export default function Matriculas() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {paymentEditor && (
+          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="w-full max-w-lg bg-white rounded-2xl border border-gray-200 shadow-xl p-5 space-y-4">
+              <div>
+                <h3 className="text-base font-semibold text-gray-800">Editar fechas de pago</h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  {paymentEditor.referencia} - plan {paymentEditor.plan_pago}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                {paymentEditor.fechas_pago.map((fecha, index) => (
+                  <div key={`fecha-${index}`} className="grid grid-cols-[100px_1fr] items-center gap-3">
+                    <span className="text-sm text-gray-600">Pago {index + 1}</span>
+                    <input
+                      type="date"
+                      value={fecha}
+                      onChange={(event) => updatePaymentDate(index, event.target.value)}
+                      className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPaymentEditor(null)}
+                  disabled={savingPaymentDates}
+                  className="flex-1 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={savePaymentDates}
+                  disabled={savingPaymentDates}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm disabled:opacity-60"
+                >
+                  {savingPaymentDates ? 'Guardando...' : 'Guardar fechas'}
+                </button>
+              </div>
             </div>
           </div>
         )}

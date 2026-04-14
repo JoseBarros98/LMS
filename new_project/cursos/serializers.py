@@ -1,11 +1,15 @@
 import secrets
 import string
+from datetime import date, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 
+from django.db.models import Sum
 from rest_framework import serializers
 from core.models import User
 
 from .models import (
     ComentarioCurso,
+    CuotaPagoMatricula,
     Curso,
     Leccion,
     MatriculaCurso,
@@ -21,6 +25,40 @@ def generate_enrollment_access_code(prefix='MAT'):
     alphabet = string.ascii_uppercase + string.digits
     token = ''.join(secrets.choice(alphabet) for _ in range(8))
     return f'{prefix}-{token}'
+
+
+def _credit_installments_for_route_duration(duration_min):
+    if duration_min <= 480:
+        return 2
+    if duration_min <= 1200:
+        return 3
+    if duration_min <= 2400:
+        return 4
+    return 5
+
+
+def _default_payment_dates(base_date, installments):
+    start = base_date or date.today()
+    return [start + timedelta(days=30 * index) for index in range(installments)]
+
+
+def _split_amount_by_installments(total_amount, installments):
+    if installments <= 0:
+        return []
+
+    total = Decimal(total_amount or 0).quantize(Decimal('0.01'))
+    base = (total / installments).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    amounts = [base for _ in range(installments)]
+    difference = total - sum(amounts)
+    amounts[-1] = (amounts[-1] + difference).quantize(Decimal('0.01'))
+    return amounts
+
+
+class CuotaPagoMatriculaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CuotaPagoMatricula
+        fields = ['id', 'numero', 'monto', 'fecha_pago', 'estado']
+        read_only_fields = ['id', 'numero', 'monto', 'estado']
 
 
 class RutaSerializer(serializers.ModelSerializer):
@@ -361,9 +399,19 @@ class CursoDetalleSerializer(CursoSerializer):
 
 
 class MatriculaRutaSerializer(serializers.ModelSerializer):
-    user_nombre = serializers.CharField(source='user.name', read_only=True)
+    user_nombre = serializers.SerializerMethodField()
     user_email = serializers.CharField(source='user.email', read_only=True)
+    user_ci = serializers.CharField(source='user.ci', read_only=True)
+    user_telefono = serializers.CharField(source='user.phone_number', read_only=True)
+    user_estado = serializers.SerializerMethodField()
     ruta_titulo = serializers.CharField(source='ruta.titulo', read_only=True)
+    created_by_nombre = serializers.SerializerMethodField()
+    cuotas = CuotaPagoMatriculaSerializer(source='cuotas_pago', many=True, read_only=True)
+    fechas_pago = serializers.ListField(
+        child=serializers.DateField(),
+        required=False,
+        write_only=True,
+    )
 
     class Meta:
         model = MatriculaRuta
@@ -372,20 +420,51 @@ class MatriculaRutaSerializer(serializers.ModelSerializer):
             'user',
             'user_nombre',
             'user_email',
+            'user_ci',
+            'user_telefono',
+            'user_estado',
+            'created_by',
+            'created_by_nombre',
             'ruta',
             'ruta_titulo',
             'codigo_acceso',
+            'plan_pago',
+            'numero_cuotas',
+            'monto_total',
             'fecha_inicio',
             'fecha_fin',
+            'fechas_pago',
+            'cuotas',
             'activa',
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at', 'created_by']
+
+    def get_user_nombre(self, obj):
+        full_name = ' '.join(
+            filter(None, [obj.user.name, obj.user.paternal_surname, obj.user.maternal_surname])
+        ).strip()
+        return full_name or obj.user.email
+
+    def get_user_estado(self, obj):
+        return 'Activo' if obj.user.status and obj.user.is_active else 'Inactivo'
+
+    def get_created_by_nombre(self, obj):
+        if not obj.created_by:
+            return ''
+        full_name = ' '.join(
+            filter(None, [obj.created_by.name, obj.created_by.paternal_surname, obj.created_by.maternal_surname])
+        ).strip()
+        return full_name or obj.created_by.email
 
     def validate(self, attrs):
         fecha_inicio = attrs.get('fecha_inicio')
         fecha_fin = attrs.get('fecha_fin')
+        ruta = attrs.get('ruta') if attrs.get('ruta') else (self.instance.ruta if self.instance else None)
+        plan_pago = attrs.get('plan_pago') if attrs.get('plan_pago') else (self.instance.plan_pago if self.instance else MatriculaRuta.PLAN_CONTADO)
+        fechas_pago = attrs.get('fechas_pago', None)
+        requested_cuotas = attrs.get('numero_cuotas')
 
         if self.instance:
             if fecha_inicio is None:
@@ -398,20 +477,110 @@ class MatriculaRutaSerializer(serializers.ModelSerializer):
                 {'fecha_fin': 'Debe ser mayor o igual a fecha_inicio.'}
             )
 
+        if not ruta:
+            raise serializers.ValidationError({'ruta': 'Debe seleccionar una ruta valida.'})
+
+        totals = ruta.cursos.aggregate(
+            total_precio=Sum('precio'),
+            total_duracion=Sum('duracion_total_min'),
+        )
+        monto_total = Decimal(totals.get('total_precio') or 0).quantize(Decimal('0.01'))
+        total_duracion = int(totals.get('total_duracion') or 0)
+
+        if plan_pago == MatriculaRuta.PLAN_CONTADO:
+            numero_cuotas = requested_cuotas if requested_cuotas is not None else (self.instance.numero_cuotas if self.instance else 2)
+            if numero_cuotas not in (1, 2):
+                raise serializers.ValidationError({'numero_cuotas': 'Para contado en ruta solo se permite 1 o 2 pagos.'})
+        else:
+            numero_cuotas = _credit_installments_for_route_duration(total_duracion)
+
+        should_sync_cuotas = (
+            not self.instance
+            or 'plan_pago' in attrs
+            or 'numero_cuotas' in attrs
+            or fechas_pago is not None
+        )
+
+        if fechas_pago is not None and len(fechas_pago) != numero_cuotas:
+            raise serializers.ValidationError({'fechas_pago': f'Debe enviar {numero_cuotas} fechas de pago.'})
+
+        attrs['_resolved_numero_cuotas'] = numero_cuotas
+        attrs['_resolved_monto_total'] = monto_total
+        attrs['_resolved_should_sync_cuotas'] = should_sync_cuotas
+        attrs['_resolved_fechas_pago'] = fechas_pago
+
         return attrs
 
+    def _sync_installments(self, instance, fechas_pago):
+        if not fechas_pago:
+            fechas_pago = _default_payment_dates(instance.fecha_inicio, instance.numero_cuotas)
+
+        montos = _split_amount_by_installments(instance.monto_total, instance.numero_cuotas)
+
+        instance.cuotas_pago.all().delete()
+        cuotas = [
+            CuotaPagoMatricula(
+                matricula_ruta=instance,
+                numero=index + 1,
+                monto=montos[index],
+                fecha_pago=fechas_pago[index],
+            )
+            for index in range(instance.numero_cuotas)
+        ]
+        CuotaPagoMatricula.objects.bulk_create(cuotas)
+
     def create(self, validated_data):
+        resolved_numero_cuotas = validated_data.pop('_resolved_numero_cuotas', 1)
+        resolved_monto_total = validated_data.pop('_resolved_monto_total', Decimal('0.00'))
+        should_sync_cuotas = validated_data.pop('_resolved_should_sync_cuotas', True)
+        resolved_fechas_pago = validated_data.pop('_resolved_fechas_pago', None)
+        validated_data.pop('fechas_pago', None)
+
         if not validated_data.get('codigo_acceso'):
             validated_data['codigo_acceso'] = generate_enrollment_access_code('RUTA')
-        return super().create(validated_data)
+
+        validated_data['numero_cuotas'] = resolved_numero_cuotas
+        validated_data['monto_total'] = resolved_monto_total
+        instance = super().create(validated_data)
+
+        if should_sync_cuotas:
+            self._sync_installments(instance, resolved_fechas_pago)
+
+        return instance
+
+    def update(self, instance, validated_data):
+        resolved_numero_cuotas = validated_data.pop('_resolved_numero_cuotas', instance.numero_cuotas)
+        resolved_monto_total = validated_data.pop('_resolved_monto_total', instance.monto_total)
+        should_sync_cuotas = validated_data.pop('_resolved_should_sync_cuotas', False)
+        resolved_fechas_pago = validated_data.pop('_resolved_fechas_pago', None)
+        validated_data.pop('fechas_pago', None)
+
+        validated_data['numero_cuotas'] = resolved_numero_cuotas
+        validated_data['monto_total'] = resolved_monto_total
+        instance = super().update(instance, validated_data)
+
+        if should_sync_cuotas:
+            self._sync_installments(instance, resolved_fechas_pago)
+
+        return instance
 
 
 class MatriculaCursoSerializer(serializers.ModelSerializer):
-    user_nombre = serializers.CharField(source='user.name', read_only=True)
+    user_nombre = serializers.SerializerMethodField()
     user_email = serializers.CharField(source='user.email', read_only=True)
+    user_ci = serializers.CharField(source='user.ci', read_only=True)
+    user_telefono = serializers.CharField(source='user.phone_number', read_only=True)
+    user_estado = serializers.SerializerMethodField()
     curso_titulo = serializers.CharField(source='curso.titulo', read_only=True)
     ruta_id = serializers.UUIDField(source='curso.ruta_id', read_only=True)
     ruta_titulo = serializers.CharField(source='curso.ruta.titulo', read_only=True)
+    created_by_nombre = serializers.SerializerMethodField()
+    cuotas = CuotaPagoMatriculaSerializer(source='cuotas_pago', many=True, read_only=True)
+    fechas_pago = serializers.ListField(
+        child=serializers.DateField(),
+        required=False,
+        write_only=True,
+    )
 
     class Meta:
         model = MatriculaCurso
@@ -420,22 +589,52 @@ class MatriculaCursoSerializer(serializers.ModelSerializer):
             'user',
             'user_nombre',
             'user_email',
+            'user_ci',
+            'user_telefono',
+            'user_estado',
+            'created_by',
+            'created_by_nombre',
             'curso',
             'curso_titulo',
             'ruta_id',
             'ruta_titulo',
             'codigo_acceso',
+            'plan_pago',
+            'numero_cuotas',
+            'monto_total',
             'fecha_inicio',
             'fecha_fin',
+            'fechas_pago',
+            'cuotas',
             'activa',
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at', 'created_by']
+
+    def get_user_nombre(self, obj):
+        full_name = ' '.join(
+            filter(None, [obj.user.name, obj.user.paternal_surname, obj.user.maternal_surname])
+        ).strip()
+        return full_name or obj.user.email
+
+    def get_user_estado(self, obj):
+        return 'Activo' if obj.user.status and obj.user.is_active else 'Inactivo'
+
+    def get_created_by_nombre(self, obj):
+        if not obj.created_by:
+            return ''
+        full_name = ' '.join(
+            filter(None, [obj.created_by.name, obj.created_by.paternal_surname, obj.created_by.maternal_surname])
+        ).strip()
+        return full_name or obj.created_by.email
 
     def validate(self, attrs):
         fecha_inicio = attrs.get('fecha_inicio')
         fecha_fin = attrs.get('fecha_fin')
+        curso = attrs.get('curso') if attrs.get('curso') else (self.instance.curso if self.instance else None)
+        plan_pago = attrs.get('plan_pago') if attrs.get('plan_pago') else (self.instance.plan_pago if self.instance else MatriculaCurso.PLAN_CONTADO)
+        fechas_pago = attrs.get('fechas_pago', None)
 
         if self.instance:
             if fecha_inicio is None:
@@ -448,12 +647,78 @@ class MatriculaCursoSerializer(serializers.ModelSerializer):
                 {'fecha_fin': 'Debe ser mayor o igual a fecha_inicio.'}
             )
 
+        if not curso:
+            raise serializers.ValidationError({'curso': 'Debe seleccionar un curso valido.'})
+
+        if plan_pago != MatriculaCurso.PLAN_CONTADO:
+            raise serializers.ValidationError({'plan_pago': 'El plan a credito solo esta disponible para rutas.'})
+
+        numero_cuotas = 1
+        should_sync_cuotas = (
+            not self.instance
+            or 'plan_pago' in attrs
+            or 'numero_cuotas' in attrs
+            or fechas_pago is not None
+        )
+
+        if fechas_pago is not None and len(fechas_pago) != 1:
+            raise serializers.ValidationError({'fechas_pago': 'En cursos individuales el pago al contado debe ser unico.'})
+
+        attrs['_resolved_numero_cuotas'] = numero_cuotas
+        attrs['_resolved_monto_total'] = Decimal(curso.precio or 0).quantize(Decimal('0.01'))
+        attrs['_resolved_should_sync_cuotas'] = should_sync_cuotas
+        attrs['_resolved_fechas_pago'] = fechas_pago
+
         return attrs
 
+    def _sync_installments(self, instance, fechas_pago):
+        if not fechas_pago:
+            fechas_pago = _default_payment_dates(instance.fecha_inicio, 1)
+
+        instance.cuotas_pago.all().delete()
+        CuotaPagoMatricula.objects.create(
+            matricula_curso=instance,
+            numero=1,
+            monto=instance.monto_total,
+            fecha_pago=fechas_pago[0],
+        )
+
     def create(self, validated_data):
+        resolved_numero_cuotas = validated_data.pop('_resolved_numero_cuotas', 1)
+        resolved_monto_total = validated_data.pop('_resolved_monto_total', Decimal('0.00'))
+        should_sync_cuotas = validated_data.pop('_resolved_should_sync_cuotas', True)
+        resolved_fechas_pago = validated_data.pop('_resolved_fechas_pago', None)
+        validated_data.pop('fechas_pago', None)
+
         if not validated_data.get('codigo_acceso'):
             validated_data['codigo_acceso'] = generate_enrollment_access_code('CURSO')
-        return super().create(validated_data)
+
+        validated_data['plan_pago'] = MatriculaCurso.PLAN_CONTADO
+        validated_data['numero_cuotas'] = resolved_numero_cuotas
+        validated_data['monto_total'] = resolved_monto_total
+        instance = super().create(validated_data)
+
+        if should_sync_cuotas:
+            self._sync_installments(instance, resolved_fechas_pago)
+
+        return instance
+
+    def update(self, instance, validated_data):
+        resolved_numero_cuotas = validated_data.pop('_resolved_numero_cuotas', 1)
+        resolved_monto_total = validated_data.pop('_resolved_monto_total', instance.monto_total)
+        should_sync_cuotas = validated_data.pop('_resolved_should_sync_cuotas', False)
+        resolved_fechas_pago = validated_data.pop('_resolved_fechas_pago', None)
+        validated_data.pop('fechas_pago', None)
+
+        validated_data['plan_pago'] = MatriculaCurso.PLAN_CONTADO
+        validated_data['numero_cuotas'] = resolved_numero_cuotas
+        validated_data['monto_total'] = resolved_monto_total
+        instance = super().update(instance, validated_data)
+
+        if should_sync_cuotas:
+            self._sync_installments(instance, resolved_fechas_pago)
+
+        return instance
 
 
 class CreateStudentEnrollmentSerializer(serializers.Serializer):
@@ -467,8 +732,11 @@ class CreateStudentEnrollmentSerializer(serializers.Serializer):
     country = serializers.CharField(max_length=100)
     password = serializers.CharField(write_only=True, min_length=6)
     codigo_acceso = serializers.CharField(max_length=120, required=False, allow_blank=True, allow_null=True)
+    plan_pago = serializers.ChoiceField(choices=MatriculaRuta.PLAN_PAGO_CHOICES, required=False, default=MatriculaRuta.PLAN_CONTADO)
+    numero_cuotas = serializers.IntegerField(required=False, min_value=1)
     fecha_inicio = serializers.DateField(required=False, allow_null=True)
     fecha_fin = serializers.DateField(required=False, allow_null=True)
+    fechas_pago = serializers.ListField(child=serializers.DateField(), required=False)
     activa = serializers.BooleanField(required=False, default=True)
 
     def validate(self, attrs):
@@ -487,5 +755,17 @@ class CreateStudentEnrollmentSerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 {'fecha_fin': 'Debe ser mayor o igual a fecha_inicio.'}
             )
+
+        enrollment_type = self.context.get('enrollment_type')
+        if enrollment_type == 'curso' and attrs.get('plan_pago') == MatriculaRuta.PLAN_CREDITO:
+            raise serializers.ValidationError({'plan_pago': 'El plan a credito solo se puede aplicar a rutas.'})
+
+        if enrollment_type == 'ruta' and attrs.get('plan_pago') == MatriculaRuta.PLAN_CONTADO:
+            numero_cuotas = attrs.get('numero_cuotas')
+            if numero_cuotas is not None and numero_cuotas not in (1, 2):
+                raise serializers.ValidationError({'numero_cuotas': 'Para contado en ruta solo se permite 1 o 2 pagos.'})
+
+        if enrollment_type == 'curso' and attrs.get('numero_cuotas') not in (None, 1):
+            raise serializers.ValidationError({'numero_cuotas': 'El pago de cursos individuales es unico.'})
 
         return attrs

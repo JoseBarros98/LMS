@@ -255,10 +255,27 @@ class MediatecaItem(models.Model):
 
 
 class MatriculaRuta(models.Model):
+    PLAN_CONTADO = 'contado'
+    PLAN_CREDITO = 'credito'
+    PLAN_PAGO_CHOICES = [
+        (PLAN_CONTADO, 'Contado'),
+        (PLAN_CREDITO, 'Credito'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='matriculas_ruta')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='matriculas_ruta_creadas',
+        blank=True,
+        null=True,
+    )
     ruta = models.ForeignKey(Ruta, on_delete=models.CASCADE, related_name='matriculas')
     codigo_acceso = models.CharField(max_length=120, blank=True, null=True)
+    plan_pago = models.CharField(max_length=10, choices=PLAN_PAGO_CHOICES, default=PLAN_CONTADO)
+    numero_cuotas = models.PositiveSmallIntegerField(default=1)
+    monto_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     fecha_inicio = models.DateField(blank=True, null=True)
     fecha_fin = models.DateField(blank=True, null=True)
     activa = models.BooleanField(default=True)
@@ -291,10 +308,27 @@ class MatriculaRuta(models.Model):
 
 
 class MatriculaCurso(models.Model):
+    PLAN_CONTADO = 'contado'
+    PLAN_CREDITO = 'credito'
+    PLAN_PAGO_CHOICES = [
+        (PLAN_CONTADO, 'Contado'),
+        (PLAN_CREDITO, 'Credito'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='matriculas_curso')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='matriculas_curso_creadas',
+        blank=True,
+        null=True,
+    )
     curso = models.ForeignKey(Curso, on_delete=models.CASCADE, related_name='matriculas')
     codigo_acceso = models.CharField(max_length=120, blank=True, null=True)
+    plan_pago = models.CharField(max_length=10, choices=PLAN_PAGO_CHOICES, default=PLAN_CONTADO)
+    numero_cuotas = models.PositiveSmallIntegerField(default=1)
+    monto_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     fecha_inicio = models.DateField(blank=True, null=True)
     fecha_fin = models.DateField(blank=True, null=True)
     activa = models.BooleanField(default=True)
@@ -324,3 +358,72 @@ class MatriculaCurso(models.Model):
 
     def __str__(self):
         return f"{self.user_id} -> {self.curso.titulo}"
+
+
+class CuotaPagoMatricula(models.Model):
+    ESTADO_PENDIENTE = 'pendiente'
+    ESTADO_PAGADO = 'pagado'
+    ESTADO_CHOICES = [
+        (ESTADO_PENDIENTE, 'Pendiente'),
+        (ESTADO_PAGADO, 'Pagado'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    matricula_ruta = models.ForeignKey(
+        MatriculaRuta,
+        on_delete=models.CASCADE,
+        related_name='cuotas_pago',
+        blank=True,
+        null=True,
+    )
+    matricula_curso = models.ForeignKey(
+        MatriculaCurso,
+        on_delete=models.CASCADE,
+        related_name='cuotas_pago',
+        blank=True,
+        null=True,
+    )
+    numero = models.PositiveSmallIntegerField()
+    monto = models.DecimalField(max_digits=12, decimal_places=2)
+    fecha_pago = models.DateField()
+    estado = models.CharField(max_length=12, choices=ESTADO_CHOICES, default=ESTADO_PENDIENTE)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Cuota de pago'
+        verbose_name_plural = 'Cuotas de pago'
+        ordering = ['numero']
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    (
+                        models.Q(matricula_ruta__isnull=False)
+                        & models.Q(matricula_curso__isnull=True)
+                    )
+                    | (
+                        models.Q(matricula_ruta__isnull=True)
+                        & models.Q(matricula_curso__isnull=False)
+                    )
+                ),
+                name='cuota_pago_unica_matricula_origen',
+            ),
+            models.UniqueConstraint(
+                fields=['matricula_ruta', 'numero'],
+                name='unique_cuota_numero_matricula_ruta',
+            ),
+            models.UniqueConstraint(
+                fields=['matricula_curso', 'numero'],
+                name='unique_cuota_numero_matricula_curso',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['matricula_ruta']),
+            models.Index(fields=['matricula_curso']),
+            models.Index(fields=['fecha_pago']),
+            models.Index(fields=['estado']),
+        ]
+
+    def __str__(self):
+        matricula_id = self.matricula_ruta_id or self.matricula_curso_id
+        return f'{matricula_id} - cuota {self.numero}'

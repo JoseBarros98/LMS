@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowRight, BookOpen, Clock3, Edit, Filter, Lock, Plus, Presentation, Sparkles, Trash2 } from 'lucide-react'
+import EnrollmentDetailModal from '../components/EnrollmentDetailModal'
 import Layout from '../components/Layout'
 import CursoModal from '../components/CursoModal'
 import { cursosApi } from '../api/cursos'
@@ -25,9 +26,14 @@ export default function Cursos() {
   const { user } = useAuth()
   const [cursos, setCursos] = useState([])
   const [rutas, setRutas] = useState([])
+  const [matriculasCurso, setMatriculasCurso] = useState([])
   const [loading, setLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [cursoEdit, setCursoEdit] = useState(null)
+  const [expandedEnrollmentCourseId, setExpandedEnrollmentCourseId] = useState(null)
+  const [selectedEnrollmentDetail, setSelectedEnrollmentDetail] = useState(null)
+  const [editingEnrollment, setEditingEnrollment] = useState(null)
+  const [savingEnrollmentEdit, setSavingEnrollmentEdit] = useState(false)
 
   const [filtroRuta, setFiltroRuta] = useState('all')
   const [filtroEstado, setFiltroEstado] = useState('all')
@@ -44,16 +50,19 @@ export default function Cursos() {
       if (filtroEstado !== 'all') query.estado = filtroEstado
       if (filtroPublicado !== 'all') query.publicado = filtroPublicado === 'si'
 
-      const [rutasData, cursosData] = await Promise.all([
+      const [rutasData, cursosData, matriculasCursoData] = await Promise.all([
         cursosApi.getRutas(),
         cursosApi.getCursos(query),
+        isAdmin ? cursosApi.getMatriculasCurso() : Promise.resolve([]),
       ])
 
       setRutas(Array.isArray(rutasData) ? rutasData : [])
       setCursos(Array.isArray(cursosData) ? cursosData : [])
+      setMatriculasCurso(Array.isArray(matriculasCursoData) ? matriculasCursoData : [])
     } catch {
       setRutas([])
       setCursos([])
+      setMatriculasCurso([])
     } finally {
       setLoading(false)
     }
@@ -117,6 +126,54 @@ export default function Cursos() {
 
   const rutaTitle = (rutaId) => {
     return rutas.find((ruta) => ruta.id === rutaId)?.titulo || 'Ruta'
+  }
+
+  const openEditEnrollment = (matricula) => {
+    setEditingEnrollment({
+      id: matricula.id,
+      fecha_inicio: matricula.fecha_inicio || '',
+      fecha_fin: matricula.fecha_fin || '',
+      activa: Boolean(matricula.activa),
+    })
+  }
+
+  const handleEditEnrollmentInput = (event) => {
+    const { name, value, type, checked } = event.target
+    const nextValue = type === 'checkbox' ? checked : value
+    setEditingEnrollment((previous) => (previous ? { ...previous, [name]: nextValue } : previous))
+  }
+
+  const handleSaveEnrollmentEdit = async () => {
+    if (!editingEnrollment) return
+
+    try {
+      setSavingEnrollmentEdit(true)
+      await cursosApi.updateMatriculaCurso(editingEnrollment.id, {
+        fecha_inicio: editingEnrollment.fecha_inicio || null,
+        fecha_fin: editingEnrollment.fecha_fin || null,
+        activa: editingEnrollment.activa,
+      })
+      showSuccess('Matricula actualizada correctamente.')
+      setEditingEnrollment(null)
+      await loadData()
+    } catch (error) {
+      showError(getApiErrorMessage(error, 'No se pudo actualizar la matricula.'))
+    } finally {
+      setSavingEnrollmentEdit(false)
+    }
+  }
+
+  const handleDeleteEnrollment = async (matricula) => {
+    const ok = window.confirm(`¿Eliminar la matricula de ${matricula.user_nombre}?`)
+    if (!ok) return
+
+    try {
+      await cursosApi.deleteMatriculaCurso(matricula.id)
+      showSuccess('Matricula eliminada correctamente.')
+      await loadData()
+    } catch (error) {
+      showError(getApiErrorMessage(error, 'No se pudo eliminar la matricula.'))
+    }
   }
 
   return (
@@ -282,6 +339,12 @@ export default function Cursos() {
                               <BookOpen size={12} /> Ver detalle
                             </button>
                             <button
+                              onClick={() => setExpandedEnrollmentCourseId(expandedEnrollmentCourseId === curso.id ? null : curso.id)}
+                              className="px-2.5 py-1.5 rounded-lg text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition inline-flex items-center gap-1"
+                            >
+                              Matriculados
+                            </button>
+                            <button
                               onClick={() => openEdit(curso)}
                               className="px-2.5 py-1.5 rounded-lg text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 transition inline-flex items-center gap-1"
                             >
@@ -313,6 +376,66 @@ export default function Cursos() {
                           </button>
                         )}
                       </div>
+
+                      {isAdmin && expandedEnrollmentCourseId === curso.id && (
+                        <div className="border-t border-slate-100 pt-3 mt-2">
+                          {matriculasCurso.filter((matricula) => matricula.curso === curso.id).length === 0 ? (
+                            <p className="text-xs text-gray-500">No hay estudiantes matriculados en este curso.</p>
+                          ) : (
+                            <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                              <table className="w-full text-xs">
+                                <thead>
+                                  <tr className="bg-gray-50 border-b border-gray-200">
+                                    <th className="text-left px-2 py-2">Nombre</th>
+                                    <th className="text-left px-2 py-2">CI</th>
+                                    <th className="text-left px-2 py-2">Telefono</th>
+                                    <th className="text-left px-2 py-2">Estado</th>
+                                    <th className="text-left px-2 py-2">Fecha</th>
+                                    <th className="text-left px-2 py-2">Matriculado por</th>
+                                    <th className="text-left px-2 py-2">Opciones</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                  {matriculasCurso
+                                    .filter((matricula) => matricula.curso === curso.id)
+                                    .map((matricula) => (
+                                      <tr key={matricula.id}>
+                                        <td className="px-2 py-2">{matricula.user_nombre}</td>
+                                        <td className="px-2 py-2">{matricula.user_ci || '-'}</td>
+                                        <td className="px-2 py-2">{matricula.user_telefono || '-'}</td>
+                                        <td className="px-2 py-2">{matricula.user_estado || '-'}</td>
+                                        <td className="px-2 py-2">{new Date(matricula.created_at).toLocaleDateString('es-BO')}</td>
+                                        <td className="px-2 py-2">{matricula.created_by_nombre || '-'}</td>
+                                        <td className="px-2 py-2">
+                                          <div className="flex items-center gap-1">
+                                            <button
+                                              onClick={() => openEditEnrollment(matricula)}
+                                              className="px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                            >
+                                              Editar
+                                            </button>
+                                            <button
+                                              onClick={() => handleDeleteEnrollment(matricula)}
+                                              className="px-2 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200"
+                                            >
+                                              Eliminar
+                                            </button>
+                                            <button
+                                              onClick={() => setSelectedEnrollmentDetail(matricula)}
+                                              className="px-2 py-1 rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                                            >
+                                              Detalle
+                                            </button>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </article>
                 ))}
@@ -332,6 +455,68 @@ export default function Cursos() {
               setCursoEdit(null)
             }}
           />
+        )}
+
+        {selectedEnrollmentDetail && (
+          <EnrollmentDetailModal
+            enrollment={selectedEnrollmentDetail}
+            type="curso"
+            onClose={() => setSelectedEnrollmentDetail(null)}
+          />
+        )}
+
+        {editingEnrollment && (
+          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="w-full max-w-lg bg-white rounded-2xl border border-gray-200 shadow-xl p-5 space-y-4">
+              <h3 className="text-base font-semibold text-gray-800">Editar matricula del curso</h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input
+                  type="date"
+                  name="fecha_inicio"
+                  value={editingEnrollment.fecha_inicio}
+                  onChange={handleEditEnrollmentInput}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                />
+                <input
+                  type="date"
+                  name="fecha_fin"
+                  value={editingEnrollment.fecha_fin}
+                  onChange={handleEditEnrollmentInput}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                />
+              </div>
+
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  name="activa"
+                  checked={editingEnrollment.activa}
+                  onChange={handleEditEnrollmentInput}
+                />
+                Matricula activa
+              </label>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingEnrollment(null)}
+                  disabled={savingEnrollmentEdit}
+                  className="flex-1 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEnrollmentEdit}
+                  disabled={savingEnrollmentEdit}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm disabled:opacity-60"
+                >
+                  {savingEnrollmentEdit ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </Layout>

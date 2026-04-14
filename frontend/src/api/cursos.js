@@ -12,6 +12,7 @@ const sanitizePayload = (data) => {
     'codigo_acceso',
     'fecha_inicio',
     'fecha_fin',
+    'numero_cuotas',
     'parent',
   ].forEach((field) => {
     if (payload[field] === '') {

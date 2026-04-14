@@ -18,8 +18,8 @@ export const getApiErrorMessage = (error, fallbackMessage) => {
   if (!firstKey) return fallbackMessage
 
   const value = data[firstKey]
-  if (Array.isArray(value) && value.length > 0) return value[0]
-  if (typeof value === 'string') return value
+  if (Array.isArray(value) && value.length > 0) return `${firstKey}: ${value[0]}`
+  if (typeof value === 'string') return `${firstKey}: ${value}`
 
   return fallbackMessage
 }
