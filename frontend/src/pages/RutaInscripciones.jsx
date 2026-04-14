@@ -1,0 +1,354 @@
+import { useCallback, useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft } from 'lucide-react'
+import Layout from '../components/Layout'
+import EnrollmentDetailModal from '../components/EnrollmentDetailModal'
+import StudentEnrollmentModal from '../components/StudentEnrollmentModal'
+import { cursosApi } from '../api/cursos'
+import { useAuth } from '../context/AuthContext'
+import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
+
+export default function RutaInscripciones() {
+  const navigate = useNavigate()
+  const { id } = useParams()
+  const { user } = useAuth()
+
+  const [ruta, setRuta] = useState(null)
+  const [matriculasRuta, setMatriculasRuta] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [selectedEnrollmentDetail, setSelectedEnrollmentDetail] = useState(null)
+  const [editingEnrollment, setEditingEnrollment] = useState(null)
+  const [savingEnrollmentEdit, setSavingEnrollmentEdit] = useState(false)
+  const [rutaEnrollmentError, setRutaEnrollmentError] = useState('')
+  const [submittingRutaEnrollment, setSubmittingRutaEnrollment] = useState(false)
+  const [rutaEnrollmentTarget, setRutaEnrollmentTarget] = useState(null)
+
+  const isAdmin = user?.role?.name?.toLowerCase() === 'administrador'
+
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true)
+      const [rutasData, matriculasRutaData] = await Promise.all([
+        cursosApi.getRutas(),
+        cursosApi.getMatriculasRuta({ ruta_id: id }),
+      ])
+      const rutaActual = Array.isArray(rutasData) ? rutasData.find((item) => item.id === id) : null
+      setRuta(rutaActual || null)
+      setMatriculasRuta(Array.isArray(matriculasRutaData) ? matriculasRutaData : [])
+    } catch {
+      setRuta(null)
+      setMatriculasRuta([])
+      showError('No se pudieron cargar las inscripciones de la ruta.')
+    } finally {
+      setLoading(false)
+    }
+  }, [id])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  const handleDeleteMatriculaRuta = async (matricula) => {
+    const ok = window.confirm(`¿Eliminar la matricula de ${matricula.user_nombre}?`)
+    if (!ok) return
+
+    try {
+      await cursosApi.deleteMatriculaRuta(matricula.id)
+      showSuccess('Matricula eliminada correctamente.')
+      await loadData()
+    } catch (error) {
+      showError(getApiErrorMessage(error, 'No se pudo eliminar la matricula.'))
+    }
+  }
+
+  const openEditEnrollment = (matricula) => {
+    setEditingEnrollment({
+      id: matricula.id,
+      plan_pago: matricula.plan_pago,
+      numero_cuotas: matricula.numero_cuotas,
+      fecha_inicio: matricula.fecha_inicio || '',
+      fecha_fin: matricula.fecha_fin || '',
+      activa: Boolean(matricula.activa),
+    })
+  }
+
+  const handleEditEnrollmentInput = (event) => {
+    const { name, value, type, checked } = event.target
+    const nextValue = type === 'checkbox' ? checked : value
+
+    setEditingEnrollment((previous) => {
+      if (!previous) return previous
+
+      if (name === 'plan_pago') {
+        return {
+          ...previous,
+          plan_pago: nextValue,
+          numero_cuotas: nextValue === 'credito' ? previous.numero_cuotas : previous.numero_cuotas,
+        }
+      }
+
+      return { ...previous, [name]: nextValue }
+    })
+  }
+
+  const handleSaveEnrollmentEdit = async () => {
+    if (!editingEnrollment) return
+
+    try {
+      setSavingEnrollmentEdit(true)
+      await cursosApi.updateMatriculaRuta(editingEnrollment.id, {
+        plan_pago: editingEnrollment.plan_pago,
+        numero_cuotas: editingEnrollment.plan_pago === 'contado' ? Number(editingEnrollment.numero_cuotas || 1) : undefined,
+        fecha_inicio: editingEnrollment.fecha_inicio || null,
+        fecha_fin: editingEnrollment.fecha_fin || null,
+        activa: editingEnrollment.activa,
+      })
+      showSuccess('Matricula actualizada correctamente.')
+      setEditingEnrollment(null)
+      await loadData()
+    } catch (error) {
+      showError(getApiErrorMessage(error, 'No se pudo actualizar la matricula.'))
+    } finally {
+      setSavingEnrollmentEdit(false)
+    }
+  }
+
+  const handleCreateStudentForRuta = async (form) => {
+    if (!rutaEnrollmentTarget) return
+
+    if (form.fecha_inicio && form.fecha_fin && form.fecha_fin < form.fecha_inicio) {
+      setRutaEnrollmentError('La fecha fin no puede ser menor que la fecha inicio.')
+      showError('La fecha fin no puede ser menor que la fecha inicio.')
+      return
+    }
+
+    try {
+      setSubmittingRutaEnrollment(true)
+      setRutaEnrollmentError('')
+      await cursosApi.createStudentAndEnrollInRuta(rutaEnrollmentTarget.id, form)
+      showSuccess('Estudiante creado y matriculado en la ruta.')
+      setRutaEnrollmentTarget(null)
+      await loadData()
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'No se pudo crear y matricular al estudiante en esta ruta.')
+      setRutaEnrollmentError(message)
+      showError(message)
+    } finally {
+      setSubmittingRutaEnrollment(false)
+    }
+  }
+
+  const refreshSelectedEnrollmentDetail = async () => {
+    if (!selectedEnrollmentDetail) return
+    await loadData()
+    const refreshed = (await cursosApi.getMatriculasRuta({ ruta_id: id })).find((item) => item.id === selectedEnrollmentDetail.id)
+    if (refreshed) {
+      setSelectedEnrollmentDetail(refreshed)
+    }
+  }
+
+  return (
+    <Layout>
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800">Inscripciones de la Ruta</h1>
+            <p className="text-sm text-gray-500">{ruta?.titulo || 'Ruta seleccionada'}</p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <button
+                onClick={() => {
+                  setRutaEnrollmentError('')
+                  setRutaEnrollmentTarget(ruta)
+                }}
+                className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm hover:bg-emerald-700"
+              >
+                Matricular estudiante
+              </button>
+            )}
+            <button
+              onClick={() => navigate('/rutas')}
+              className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 inline-flex items-center gap-2"
+            >
+              <ArrowLeft size={15} /> Volver a Rutas
+            </button>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center items-center py-10">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        ) : matriculasRuta.length === 0 ? (
+          <div className="bg-white border border-gray-200 rounded-xl p-6 text-sm text-gray-500">
+            No hay estudiantes matriculados en esta ruta.
+          </div>
+        ) : (
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-200">
+                  <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Nombre completo</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Documento/CI</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Telefono</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Estado</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Fecha matriculacion</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Matriculado por</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Opciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {matriculasRuta.map((matricula) => (
+                  <tr key={matricula.id}>
+                    <td className="px-4 py-3">{matricula.user_nombre}</td>
+                    <td className="px-4 py-3">{matricula.user_ci || '-'}</td>
+                    <td className="px-4 py-3">{matricula.user_telefono || '-'}</td>
+                    <td className="px-4 py-3">{matricula.user_estado || '-'}</td>
+                    <td className="px-4 py-3">{new Date(matricula.created_at).toLocaleDateString('es-BO')}</td>
+                    <td className="px-4 py-3">{matricula.created_by_nombre || '-'}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1.5">
+                        {isAdmin && (
+                          <button
+                            onClick={() => openEditEnrollment(matricula)}
+                            className="px-2.5 py-1.5 rounded-lg text-xs bg-blue-100 text-blue-700 hover:bg-blue-200"
+                          >
+                            Editar
+                          </button>
+                        )}
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleDeleteMatriculaRuta(matricula)}
+                            className="px-2.5 py-1.5 rounded-lg text-xs bg-red-100 text-red-700 hover:bg-red-200"
+                          >
+                            Eliminar
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setSelectedEnrollmentDetail(matricula)}
+                          className="px-2.5 py-1.5 rounded-lg text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                        >
+                          Ver detalle
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {selectedEnrollmentDetail && (
+          <EnrollmentDetailModal
+            enrollment={selectedEnrollmentDetail}
+            type="ruta"
+            onUpdated={refreshSelectedEnrollmentDetail}
+            onClose={() => setSelectedEnrollmentDetail(null)}
+          />
+        )}
+
+        {editingEnrollment && (
+          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="w-full max-w-lg bg-white rounded-2xl border border-gray-200 shadow-xl p-5 space-y-4">
+              <h3 className="text-base font-semibold text-gray-800">Editar matricula</h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <select
+                  name="plan_pago"
+                  value={editingEnrollment.plan_pago}
+                  onChange={handleEditEnrollmentInput}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                >
+                  <option value="contado">Plan contado</option>
+                  <option value="credito">Plan credito</option>
+                </select>
+
+                {editingEnrollment.plan_pago === 'contado' ? (
+                  <select
+                    name="numero_cuotas"
+                    value={editingEnrollment.numero_cuotas}
+                    onChange={handleEditEnrollmentInput}
+                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  >
+                    <option value={1}>1 pago</option>
+                    <option value={2}>2 pagos</option>
+                  </select>
+                ) : (
+                  <input
+                    value="Cuotas automaticas por duracion"
+                    disabled
+                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-100"
+                  />
+                )}
+
+                <input
+                  type="date"
+                  name="fecha_inicio"
+                  value={editingEnrollment.fecha_inicio}
+                  onChange={handleEditEnrollmentInput}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                />
+                <input
+                  type="date"
+                  name="fecha_fin"
+                  value={editingEnrollment.fecha_fin}
+                  onChange={handleEditEnrollmentInput}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                />
+              </div>
+
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  name="activa"
+                  checked={editingEnrollment.activa}
+                  onChange={handleEditEnrollmentInput}
+                />
+                Matricula activa
+              </label>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingEnrollment(null)}
+                  disabled={savingEnrollmentEdit}
+                  className="flex-1 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveEnrollmentEdit}
+                  disabled={savingEnrollmentEdit}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm disabled:opacity-60"
+                >
+                  {savingEnrollmentEdit ? 'Guardando...' : 'Guardar cambios'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {rutaEnrollmentTarget && isAdmin && (
+          <StudentEnrollmentModal
+            title="Nuevo estudiante para esta ruta"
+            subtitle={`Se creara con rol Estudiante y quedara matriculado en ${rutaEnrollmentTarget.titulo}.`}
+            submitLabel="Crear y matricular"
+            loading={submittingRutaEnrollment}
+            error={rutaEnrollmentError}
+            enrollmentType="ruta"
+            onSubmit={handleCreateStudentForRuta}
+            onClose={() => {
+              if (submittingRutaEnrollment) return
+              setRutaEnrollmentTarget(null)
+              setRutaEnrollmentError('')
+            }}
+          />
+        )}
+      </div>
+    </Layout>
+  )
+}

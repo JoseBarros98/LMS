@@ -1,7 +1,7 @@
-import { Fragment, useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Edit, Plus, Sparkles, Trash2, UserPlus } from 'lucide-react'
 import Layout from '../components/Layout'
-import EnrollmentDetailModal from '../components/EnrollmentDetailModal'
 import RutaModal from '../components/RutaModal'
 import StudentEnrollmentModal from '../components/StudentEnrollmentModal'
 import { cursosApi } from '../api/cursos'
@@ -10,6 +10,7 @@ import { formatCurrencyBs, formatDuration } from '../utils/formatters'
 import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
 
 export default function Rutas() {
+  const navigate = useNavigate()
   const { user } = useAuth()
   const [rutas, setRutas] = useState([])
   const [cursos, setCursos] = useState([])
@@ -20,10 +21,6 @@ export default function Rutas() {
   const [rutaEnrollmentTarget, setRutaEnrollmentTarget] = useState(null)
   const [rutaEnrollmentError, setRutaEnrollmentError] = useState('')
   const [submittingRutaEnrollment, setSubmittingRutaEnrollment] = useState(false)
-  const [expandedRutaId, setExpandedRutaId] = useState(null)
-  const [selectedEnrollmentDetail, setSelectedEnrollmentDetail] = useState(null)
-  const [editingEnrollment, setEditingEnrollment] = useState(null)
-  const [savingEnrollmentEdit, setSavingEnrollmentEdit] = useState(false)
 
   const isAdmin = user?.role?.name?.toLowerCase() === 'administrador'
 
@@ -129,79 +126,11 @@ export default function Rutas() {
     return acc
   }, {})
 
-  const handleDeleteMatriculaRuta = async (matricula) => {
-    const ok = window.confirm(`¿Eliminar la matricula de ${matricula.user_nombre}?`)
-    if (!ok) return
-
-    try {
-      await cursosApi.deleteMatriculaRuta(matricula.id)
-      showSuccess('Matricula eliminada correctamente.')
-      await loadData()
-    } catch (error) {
-      showError(getApiErrorMessage(error, 'No se pudo eliminar la matricula.'))
-    }
-  }
-
-  const openEditEnrollment = (matricula) => {
-    setEditingEnrollment({
-      id: matricula.id,
-      plan_pago: matricula.plan_pago,
-      numero_cuotas: matricula.numero_cuotas,
-      fecha_inicio: matricula.fecha_inicio || '',
-      fecha_fin: matricula.fecha_fin || '',
-      activa: Boolean(matricula.activa),
-    })
-  }
-
-  const handleEditEnrollmentInput = (event) => {
-    const { name, value, type, checked } = event.target
-    const nextValue = type === 'checkbox' ? checked : value
-
-    setEditingEnrollment((previous) => {
-      if (!previous) return previous
-
-      if (name === 'plan_pago') {
-        return {
-          ...previous,
-          plan_pago: nextValue,
-          numero_cuotas: nextValue === 'credito' ? previous.numero_cuotas : previous.numero_cuotas,
-        }
-      }
-
-      return { ...previous, [name]: nextValue }
-    })
-  }
-
-  const handleSaveEnrollmentEdit = async () => {
-    if (!editingEnrollment) return
-
-    try {
-      setSavingEnrollmentEdit(true)
-      await cursosApi.updateMatriculaRuta(editingEnrollment.id, {
-        plan_pago: editingEnrollment.plan_pago,
-        numero_cuotas: editingEnrollment.plan_pago === 'contado' ? Number(editingEnrollment.numero_cuotas || 1) : undefined,
-        fecha_inicio: editingEnrollment.fecha_inicio || null,
-        fecha_fin: editingEnrollment.fecha_fin || null,
-        activa: editingEnrollment.activa,
-      })
-      showSuccess('Matricula actualizada correctamente.')
-      setEditingEnrollment(null)
-      await loadData()
-    } catch (error) {
-      showError(getApiErrorMessage(error, 'No se pudo actualizar la matricula.'))
-    } finally {
-      setSavingEnrollmentEdit(false)
-    }
-  }
-
-  const refreshSelectedEnrollmentDetail = async () => {
-    if (!selectedEnrollmentDetail) return
-    await loadData()
-    const refreshed = (await cursosApi.getMatriculasRuta()).find((item) => item.id === selectedEnrollmentDetail.id)
-    if (refreshed) {
-      setSelectedEnrollmentDetail(refreshed)
-    }
-  }
+  const cursosPorRuta = cursos.reduce((acc, curso) => {
+    if (!curso?.ruta) return acc
+    acc[curso.ruta] = (acc[curso.ruta] || 0) + 1
+    return acc
+  }, {})
 
   return (
     <Layout>
@@ -242,154 +171,71 @@ export default function Rutas() {
                   <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-xs">Estado</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-xs">Precio</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-xs">Duracion</th>
-                  <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-xs">Inscritos</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-xs">Cursos</th>
-                  {isAdmin && (
-                    <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-xs">Acciones</th>
-                  )}
+                  <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-xs">Inscritos</th>
+                  <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-xs">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {rutas.map((ruta) => {
-                  const rutaCursos = cursos.filter((curso) => curso.ruta === ruta.id)
-                  const rutaMatriculas = matriculasRuta.filter((matricula) => matricula.ruta === ruta.id)
-                  const isExpanded = expandedRutaId === ruta.id
-
-                  return (
-                    <Fragment key={ruta.id}>
-                      <tr className="hover:bg-gray-50 transition">
-                        <td className="px-4 py-3">
-                          <p className="font-semibold text-gray-800">{ruta.titulo}</p>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={`text-[10px] px-2 py-1 rounded-full ${ruta.publicado ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                            {ruta.publicado ? 'Publicada' : 'Borrador'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-gray-700 font-medium">{formatCurrencyBs(ruta.precio_total)}</td>
-                        <td className="px-4 py-3 text-gray-700">{formatDuration(ruta.duracion_total_min)}</td>
-                        <td className="px-4 py-3 text-gray-700 font-medium">
-                          {inscritosPorRuta[ruta.id] || 0}
-                        </td>
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => setExpandedRutaId(isExpanded ? null : ruta.id)}
-                            className="px-3 py-1.5 rounded-lg text-xs bg-gray-900 text-white hover:bg-gray-800 transition"
-                          >
-                            {isExpanded ? 'Hide' : 'Show'}
-                          </button>
-                        </td>
+                {rutas.map((ruta) => (
+                  <tr key={ruta.id} className="hover:bg-gray-50 transition">
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-gray-800">{ruta.titulo}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`text-[10px] px-2 py-1 rounded-full ${ruta.publicado ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {ruta.publicado ? 'Publicada' : 'Borrador'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-700 font-medium">{formatCurrencyBs(ruta.precio_total)}</td>
+                    <td className="px-4 py-3 text-gray-700">{formatDuration(ruta.duracion_total_min)}</td>
+                    <td className="px-4 py-3 text-gray-700 font-medium">{cursosPorRuta[ruta.id] || 0}</td>
+                    <td className="px-4 py-3 text-gray-700 font-medium">{inscritosPorRuta[ruta.id] || 0}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={() => navigate(`/rutas/${ruta.id}/cursos`)}
+                          className="px-2.5 py-1.5 rounded-lg text-xs bg-gray-900 text-white hover:bg-gray-800 transition"
+                        >
+                          Show
+                        </button>
+                        <button
+                          onClick={() => navigate(`/rutas/${ruta.id}/inscripciones`)}
+                          className="px-2.5 py-1.5 rounded-lg text-xs bg-sky-100 text-sky-700 hover:bg-sky-200 transition"
+                        >
+                          Inscripciones
+                        </button>
                         {isAdmin && (
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={() => {
-                                  setRutaEnrollmentError('')
-                                  setRutaEnrollmentTarget(ruta)
-                                }}
-                                className="px-2.5 py-1.5 rounded-lg text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition inline-flex items-center gap-1"
-                              >
-                                <UserPlus size={12} /> Matricular
-                              </button>
-                              <button
-                                onClick={() => openEditRuta(ruta)}
-                                className="px-2.5 py-1.5 rounded-lg text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 transition inline-flex items-center gap-1"
-                              >
-                                <Edit size={12} /> Editar
-                              </button>
-                              <button
-                                onClick={() => handleDeleteRuta(ruta)}
-                                className="px-2.5 py-1.5 rounded-lg text-xs bg-red-100 text-red-700 hover:bg-red-200 transition inline-flex items-center gap-1"
-                              >
-                                <Trash2 size={12} /> Eliminar
-                              </button>
-                            </div>
-                          </td>
+                          <button
+                            onClick={() => {
+                              setRutaEnrollmentError('')
+                              setRutaEnrollmentTarget(ruta)
+                            }}
+                            className="px-2.5 py-1.5 rounded-lg text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition inline-flex items-center gap-1"
+                          >
+                            <UserPlus size={12} /> Matricular
+                          </button>
                         )}
-                      </tr>
-
-                      {isExpanded && (
-                        <tr className="bg-gray-50/70">
-                          <td colSpan={isAdmin ? 7 : 6} className="px-4 py-3">
-                            {rutaCursos.length === 0 ? (
-                              <p className="text-sm text-gray-500">Esta ruta no tiene cursos asociados.</p>
-                            ) : (
-                              <div className="space-y-2">
-                                <p className="text-xs font-semibold text-gray-500 uppercase">Cursos de la ruta</p>
-                                <div className="space-y-1">
-                                  {rutaCursos.map((curso) => (
-                                    <div key={curso.id} className="flex items-center justify-between border border-gray-200 bg-white rounded-lg px-3 py-2">
-                                      <span className="text-sm text-gray-700 font-medium">{curso.titulo}</span>
-                                      <div className="flex items-center gap-4">
-                                        <span className="text-xs text-gray-500">Precio: {formatCurrencyBs(curso.precio)}</span>
-                                        <span className="text-xs text-gray-500">Duracion: {formatDuration(curso.duracion_total_min)}</span>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-
-                                <p className="text-xs font-semibold text-gray-500 uppercase pt-2">Estudiantes matriculados</p>
-                                {rutaMatriculas.length === 0 ? (
-                                  <p className="text-sm text-gray-500">No hay estudiantes matriculados en esta ruta.</p>
-                                ) : (
-                                  <div className="overflow-x-auto border border-gray-200 rounded-lg bg-white">
-                                    <table className="w-full text-xs">
-                                      <thead>
-                                        <tr className="bg-gray-50 border-b border-gray-200">
-                                          <th className="text-left px-3 py-2">Nombre completo</th>
-                                          <th className="text-left px-3 py-2">Documento/CI</th>
-                                          <th className="text-left px-3 py-2">Telefono</th>
-                                          <th className="text-left px-3 py-2">Estado</th>
-                                          <th className="text-left px-3 py-2">Fecha matriculacion</th>
-                                          <th className="text-left px-3 py-2">Matriculado por</th>
-                                          <th className="text-left px-3 py-2">Opciones</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody className="divide-y divide-gray-100">
-                                        {rutaMatriculas.map((matricula) => (
-                                          <tr key={matricula.id}>
-                                            <td className="px-3 py-2">{matricula.user_nombre}</td>
-                                            <td className="px-3 py-2">{matricula.user_ci || '-'}</td>
-                                            <td className="px-3 py-2">{matricula.user_telefono || '-'}</td>
-                                            <td className="px-3 py-2">{matricula.user_estado || '-'}</td>
-                                            <td className="px-3 py-2">{new Date(matricula.created_at).toLocaleDateString('es-BO')}</td>
-                                            <td className="px-3 py-2">{matricula.created_by_nombre || '-'}</td>
-                                            <td className="px-3 py-2">
-                                              <div className="flex items-center gap-1.5">
-                                                <button
-                                                  onClick={() => openEditEnrollment(matricula)}
-                                                  className="px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                                >
-                                                  Editar
-                                                </button>
-                                                <button
-                                                  onClick={() => handleDeleteMatriculaRuta(matricula)}
-                                                  className="px-2 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200"
-                                                >
-                                                  Eliminar
-                                                </button>
-                                                <button
-                                                  onClick={() => setSelectedEnrollmentDetail(matricula)}
-                                                  className="px-2 py-1 rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
-                                                >
-                                                  Ver detalle
-                                                </button>
-                                              </div>
-                                            </td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  )
-                })}
+                        {isAdmin && (
+                          <button
+                            onClick={() => openEditRuta(ruta)}
+                            className="px-2.5 py-1.5 rounded-lg text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 transition inline-flex items-center gap-1"
+                          >
+                            <Edit size={12} /> Editar
+                          </button>
+                        )}
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleDeleteRuta(ruta)}
+                            className="px-2.5 py-1.5 rounded-lg text-xs bg-red-100 text-red-700 hover:bg-red-200 transition inline-flex items-center gap-1"
+                          >
+                            <Trash2 size={12} /> Eliminar
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -422,97 +268,6 @@ export default function Rutas() {
               setRutaEnrollmentError('')
             }}
           />
-        )}
-
-        {selectedEnrollmentDetail && (
-          <EnrollmentDetailModal
-            enrollment={selectedEnrollmentDetail}
-            type="ruta"
-            onUpdated={refreshSelectedEnrollmentDetail}
-            onClose={() => setSelectedEnrollmentDetail(null)}
-          />
-        )}
-
-        {editingEnrollment && (
-          <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-lg bg-white rounded-2xl border border-gray-200 shadow-xl p-5 space-y-4">
-              <h3 className="text-base font-semibold text-gray-800">Editar matricula</h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <select
-                  name="plan_pago"
-                  value={editingEnrollment.plan_pago}
-                  onChange={handleEditEnrollmentInput}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                >
-                  <option value="contado">Plan contado</option>
-                  <option value="credito">Plan credito</option>
-                </select>
-
-                {editingEnrollment.plan_pago === 'contado' ? (
-                  <select
-                    name="numero_cuotas"
-                    value={editingEnrollment.numero_cuotas}
-                    onChange={handleEditEnrollmentInput}
-                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                  >
-                    <option value={1}>1 pago</option>
-                    <option value={2}>2 pagos</option>
-                  </select>
-                ) : (
-                  <input
-                    value="Cuotas automaticas por duracion"
-                    disabled
-                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-100"
-                  />
-                )}
-
-                <input
-                  type="date"
-                  name="fecha_inicio"
-                  value={editingEnrollment.fecha_inicio}
-                  onChange={handleEditEnrollmentInput}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                />
-                <input
-                  type="date"
-                  name="fecha_fin"
-                  value={editingEnrollment.fecha_fin}
-                  onChange={handleEditEnrollmentInput}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                />
-              </div>
-
-              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  name="activa"
-                  checked={editingEnrollment.activa}
-                  onChange={handleEditEnrollmentInput}
-                />
-                Matricula activa
-              </label>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingEnrollment(null)}
-                  disabled={savingEnrollmentEdit}
-                  className="flex-1 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveEnrollmentEdit}
-                  disabled={savingEnrollmentEdit}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm disabled:opacity-60"
-                >
-                  {savingEnrollmentEdit ? 'Guardando...' : 'Guardar cambios'}
-                </button>
-              </div>
-            </div>
-          </div>
         )}
       </div>
     </Layout>
