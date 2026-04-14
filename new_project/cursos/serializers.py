@@ -55,10 +55,52 @@ def _split_amount_by_installments(total_amount, installments):
 
 
 class CuotaPagoMatriculaSerializer(serializers.ModelSerializer):
+    saldo_pendiente = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+
     class Meta:
         model = CuotaPagoMatricula
-        fields = ['id', 'numero', 'monto', 'fecha_pago', 'estado']
-        read_only_fields = ['id', 'numero', 'monto', 'estado']
+        fields = [
+            'id',
+            'numero',
+            'monto',
+            'monto_pagado',
+            'saldo_pendiente',
+            'fecha_pago',
+            'fecha_pago_real',
+            'estado',
+        ]
+        read_only_fields = ['id', 'numero', 'monto', 'monto_pagado', 'saldo_pendiente']
+
+
+class CuotaPagoControlSerializer(serializers.ModelSerializer):
+    saldo_pendiente = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = CuotaPagoMatricula
+        fields = [
+            'id',
+            'numero',
+            'monto',
+            'monto_pagado',
+            'saldo_pendiente',
+            'fecha_pago',
+            'fecha_pago_real',
+            'estado',
+        ]
+        read_only_fields = [
+            'id',
+            'numero',
+            'monto',
+            'monto_pagado',
+            'saldo_pendiente',
+            'fecha_pago_real',
+            'estado',
+        ]
+
+
+class RegistrarPagoCuotaSerializer(serializers.Serializer):
+    monto_abonado = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal('0.01'))
+    fecha_pago_real = serializers.DateField(required=False)
 
 
 class RutaSerializer(serializers.ModelSerializer):

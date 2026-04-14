@@ -194,6 +194,15 @@ export default function Rutas() {
     }
   }
 
+  const refreshSelectedEnrollmentDetail = async () => {
+    if (!selectedEnrollmentDetail) return
+    await loadData()
+    const refreshed = (await cursosApi.getMatriculasRuta()).find((item) => item.id === selectedEnrollmentDetail.id)
+    if (refreshed) {
+      setSelectedEnrollmentDetail(refreshed)
+    }
+  }
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -419,6 +428,7 @@ export default function Rutas() {
           <EnrollmentDetailModal
             enrollment={selectedEnrollmentDetail}
             type="ruta"
+            onUpdated={refreshSelectedEnrollmentDetail}
             onClose={() => setSelectedEnrollmentDetail(null)}
           />
         )}

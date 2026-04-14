@@ -12,6 +12,8 @@ const sanitizePayload = (data) => {
     'codigo_acceso',
     'fecha_inicio',
     'fecha_fin',
+    'fecha_pago',
+    'fecha_pago_real',
     'numero_cuotas',
     'parent',
   ].forEach((field) => {
@@ -93,6 +95,10 @@ export const cursosApi = {
   updateMatriculaCurso: (id, data) => api.patch(`/matriculas-curso/${id}/`, sanitizePayload(data)),
 
   deleteMatriculaCurso: (id) => api.delete(`/matriculas-curso/${id}/`),
+
+  updateCuotaPago: (id, data) => api.patch(`/cuotas-pago/${id}/`, sanitizePayload(data)),
+
+  registrarPagoCuota: (id, data) => api.post(`/cuotas-pago/${id}/registrar_pago/`, sanitizePayload(data)),
 
   getCursoDetalle: async (id) => {
     const response = await api.get(`/cursos/${id}/`)

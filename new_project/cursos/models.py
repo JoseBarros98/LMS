@@ -1,4 +1,5 @@
 import uuid
+from decimal import Decimal
 
 from django.db import models
 from django.conf import settings
@@ -362,9 +363,11 @@ class MatriculaCurso(models.Model):
 
 class CuotaPagoMatricula(models.Model):
     ESTADO_PENDIENTE = 'pendiente'
+    ESTADO_PARCIAL = 'parcial'
     ESTADO_PAGADO = 'pagado'
     ESTADO_CHOICES = [
         (ESTADO_PENDIENTE, 'Pendiente'),
+        (ESTADO_PARCIAL, 'Parcial'),
         (ESTADO_PAGADO, 'Pagado'),
     ]
 
@@ -385,7 +388,9 @@ class CuotaPagoMatricula(models.Model):
     )
     numero = models.PositiveSmallIntegerField()
     monto = models.DecimalField(max_digits=12, decimal_places=2)
+    monto_pagado = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     fecha_pago = models.DateField()
+    fecha_pago_real = models.DateField(blank=True, null=True)
     estado = models.CharField(max_length=12, choices=ESTADO_CHOICES, default=ESTADO_PENDIENTE)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -427,3 +432,28 @@ class CuotaPagoMatricula(models.Model):
     def __str__(self):
         matricula_id = self.matricula_ruta_id or self.matricula_curso_id
         return f'{matricula_id} - cuota {self.numero}'
+
+    @property
+    def saldo_pendiente(self):
+        saldo = (self.monto or Decimal('0.00')) - (self.monto_pagado or Decimal('0.00'))
+        if saldo < Decimal('0.00'):
+            return Decimal('0.00')
+        return saldo
+
+    def refresh_payment_state(self):
+        monto = self.monto or Decimal('0.00')
+        pagado = self.monto_pagado or Decimal('0.00')
+
+        if pagado <= Decimal('0.00'):
+            self.monto_pagado = Decimal('0.00')
+            self.estado = self.ESTADO_PENDIENTE
+            self.fecha_pago_real = None
+        elif pagado < monto:
+            self.estado = self.ESTADO_PARCIAL
+        else:
+            self.monto_pagado = monto
+            self.estado = self.ESTADO_PAGADO
+
+    def save(self, *args, **kwargs):
+        self.refresh_payment_state()
+        super().save(*args, **kwargs)

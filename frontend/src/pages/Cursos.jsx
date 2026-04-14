@@ -176,6 +176,15 @@ export default function Cursos() {
     }
   }
 
+  const refreshSelectedEnrollmentDetail = async () => {
+    if (!selectedEnrollmentDetail) return
+    await loadData()
+    const refreshed = (await cursosApi.getMatriculasCurso()).find((item) => item.id === selectedEnrollmentDetail.id)
+    if (refreshed) {
+      setSelectedEnrollmentDetail(refreshed)
+    }
+  }
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -461,6 +470,7 @@ export default function Cursos() {
           <EnrollmentDetailModal
             enrollment={selectedEnrollmentDetail}
             type="curso"
+            onUpdated={refreshSelectedEnrollmentDetail}
             onClose={() => setSelectedEnrollmentDetail(null)}
           />
         )}

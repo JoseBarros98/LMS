@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 
 from django.db.models import Count, DecimalField, IntegerField, Q, Sum, Value
 from django.db import transaction
@@ -10,15 +11,17 @@ from rest_framework.response import Response
 from core.models import Role, User
 from core.serializers import UserSerializer
 
-from .models import ComentarioCurso, Curso, Leccion, MatriculaCurso, MatriculaRuta, ProgresoLeccion, Ruta, Seccion, MediatecaItem
+from .models import ComentarioCurso, CuotaPagoMatricula, Curso, Leccion, MatriculaCurso, MatriculaRuta, ProgresoLeccion, Ruta, Seccion, MediatecaItem
 from .serializers import (
     ComentarioCursoSerializer,
+    CuotaPagoControlSerializer,
     CreateStudentEnrollmentSerializer,
     CursoDetalleSerializer,
     CursoSerializer,
     MatriculaCursoSerializer,
     MatriculaRutaSerializer,
     ProgresoLeccionSerializer,
+    RegistrarPagoCuotaSerializer,
     RutaSerializer,
     SeccionDetalleSerializer,
     LeccionDetalleSerializer,
@@ -350,6 +353,99 @@ class MatriculaCursoViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+
+class CuotaPagoMatriculaViewSet(viewsets.ModelViewSet):
+    serializer_class = CuotaPagoControlSerializer
+    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+
+    def get_queryset(self):
+        queryset = CuotaPagoMatricula.objects.select_related(
+            'matricula_ruta__user',
+            'matricula_ruta__created_by',
+            'matricula_curso__user',
+            'matricula_curso__created_by',
+        )
+
+        matricula_ruta_id = self.request.query_params.get('matricula_ruta_id')
+        matricula_curso_id = self.request.query_params.get('matricula_curso_id')
+
+        if matricula_ruta_id:
+            queryset = queryset.filter(matricula_ruta_id=matricula_ruta_id)
+        if matricula_curso_id:
+            queryset = queryset.filter(matricula_curso_id=matricula_curso_id)
+
+        is_admin = is_admin_user(self.request.user)
+        if not is_admin:
+            queryset = queryset.filter(
+                Q(matricula_ruta__user_id=self.request.user.id)
+                | Q(matricula_curso__user_id=self.request.user.id)
+            )
+
+        return queryset.order_by('numero')
+
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        payload = {}
+        if 'fecha_pago' in request.data:
+            payload['fecha_pago'] = request.data.get('fecha_pago')
+
+        serializer = self.get_serializer(instance, data=payload, partial=True)
+        serializer.is_valid(raise_exception=True)
+        cuota = serializer.save()
+        return Response(self.get_serializer(cuota).data)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def registrar_pago(self, request, pk=None):
+        if not is_admin_user(request.user):
+            return Response({'detail': 'Solo los administradores pueden registrar pagos.'}, status=status.HTTP_403_FORBIDDEN)
+
+        cuota_inicial = self.get_object()
+        serializer = RegistrarPagoCuotaSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        remaining = Decimal(serializer.validated_data['monto_abonado'])
+        fecha_pago_real = serializer.validated_data.get('fecha_pago_real', date.today())
+
+        if cuota_inicial.matricula_ruta_id:
+            cuotas = CuotaPagoMatricula.objects.filter(
+                matricula_ruta_id=cuota_inicial.matricula_ruta_id,
+                numero__gte=cuota_inicial.numero,
+            ).order_by('numero')
+        else:
+            cuotas = CuotaPagoMatricula.objects.filter(
+                matricula_curso_id=cuota_inicial.matricula_curso_id,
+                numero__gte=cuota_inicial.numero,
+            ).order_by('numero')
+
+        updated_ids = []
+        with transaction.atomic():
+            for cuota in cuotas:
+                if remaining <= Decimal('0.00'):
+                    break
+
+                saldo = cuota.saldo_pendiente
+                if saldo <= Decimal('0.00'):
+                    continue
+
+                aplicado = saldo if remaining >= saldo else remaining
+                cuota.monto_pagado = (cuota.monto_pagado or Decimal('0.00')) + aplicado
+                cuota.fecha_pago_real = fecha_pago_real
+                cuota.refresh_payment_state()
+                cuota.save(update_fields=['monto_pagado', 'estado', 'fecha_pago_real', 'updated_at'])
+
+                updated_ids.append(str(cuota.id))
+                remaining -= aplicado
+
+        payload = {
+            'updated_cuotas': CuotaPagoControlSerializer(
+                CuotaPagoMatricula.objects.filter(id__in=updated_ids).order_by('numero'),
+                many=True,
+            ).data,
+            'monto_abonado': str(serializer.validated_data['monto_abonado']),
+            'monto_excedente': str(remaining if remaining > Decimal('0.00') else Decimal('0.00')),
+        }
+        return Response(payload, status=status.HTTP_200_OK)
 
 
 class ProgresoLeccionViewSet(viewsets.ModelViewSet):

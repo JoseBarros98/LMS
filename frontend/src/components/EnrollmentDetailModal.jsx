@@ -1,8 +1,22 @@
+import { useMemo, useState } from 'react'
 import { X } from 'lucide-react'
+import { cursosApi } from '../api/cursos'
+import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
 
 const formatDate = (value) => {
   if (!value) return '-'
-  return new Date(value).toLocaleDateString('es-BO', { year: 'numeric', month: '2-digit', day: '2-digit' })
+
+  // Date-only strings from API (YYYY-MM-DD) should be rendered without timezone conversion.
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split('-')
+    return `${day}/${month}/${year}`
+  }
+
+  return new Date(value).toLocaleDateString('es-BO', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
 }
 
 const formatCurrency = (value) => {
@@ -10,13 +24,92 @@ const formatCurrency = (value) => {
   return amount.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-export default function EnrollmentDetailModal({ enrollment, type, onClose }) {
+export default function EnrollmentDetailModal({ enrollment, type, onClose, onUpdated }) {
   if (!enrollment) return null
 
   const title = type === 'ruta' ? enrollment.ruta_titulo : enrollment.curso_titulo
-  const cuotas = Array.isArray(enrollment.cuotas)
+  const cuotas = useMemo(() => (Array.isArray(enrollment.cuotas)
     ? [...enrollment.cuotas].sort((a, b) => a.numero - b.numero)
-    : []
+    : []), [enrollment.cuotas])
+
+  const [editingRows, setEditingRows] = useState(() => {
+    const map = {}
+    cuotas.forEach((cuota) => {
+      map[cuota.id] = {
+        fecha_pago: cuota.fecha_pago || '',
+      }
+    })
+    return map
+  })
+
+  const [savingRowId, setSavingRowId] = useState('')
+  const [abonoCuotaId, setAbonoCuotaId] = useState(cuotas[0]?.id || '')
+  const [abonoMonto, setAbonoMonto] = useState('')
+  const [abonoFecha, setAbonoFecha] = useState('')
+  const [savingAbono, setSavingAbono] = useState(false)
+
+  const handleRowChange = (cuotaId, field, value) => {
+    setEditingRows((prev) => ({
+      ...prev,
+      [cuotaId]: {
+        ...prev[cuotaId],
+        [field]: value,
+      },
+    }))
+  }
+
+  const saveCuota = async (cuotaId) => {
+    const row = editingRows[cuotaId]
+    if (!row) return
+
+    try {
+      setSavingRowId(cuotaId)
+      await cursosApi.updateCuotaPago(cuotaId, {
+        fecha_pago: row.fecha_pago,
+      })
+      showSuccess('Cuota actualizada correctamente.')
+      if (onUpdated) await onUpdated()
+    } catch (error) {
+      showError(getApiErrorMessage(error, 'No se pudo actualizar la cuota.'))
+    } finally {
+      setSavingRowId('')
+    }
+  }
+
+  const handleRegistrarAbono = async () => {
+    if (!abonoCuotaId) {
+      showError('Selecciona una cuota para registrar el pago.')
+      return
+    }
+    if (!abonoMonto || Number(abonoMonto) <= 0) {
+      showError('Ingresa un monto valido para el abono.')
+      return
+    }
+
+    try {
+      setSavingAbono(true)
+      const payload = {
+        monto_abonado: Number(abonoMonto),
+      }
+      if (abonoFecha) payload.fecha_pago_real = abonoFecha
+
+      const response = await cursosApi.registrarPagoCuota(abonoCuotaId, payload)
+      const excedente = Number(response?.data?.monto_excedente || 0)
+      if (excedente > 0) {
+        showSuccess(`Pago registrado. Excedente sin aplicar: Bs ${formatCurrency(excedente)}`)
+      } else {
+        showSuccess('Pago registrado y distribuido correctamente.')
+      }
+
+      setAbonoMonto('')
+      setAbonoFecha('')
+      if (onUpdated) await onUpdated()
+    } catch (error) {
+      showError(getApiErrorMessage(error, 'No se pudo registrar el pago.'))
+    } finally {
+      setSavingAbono(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
@@ -62,6 +155,46 @@ export default function EnrollmentDetailModal({ enrollment, type, onClose }) {
             <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
               <h3 className="text-sm font-semibold text-gray-700">Plan de pagos generado</h3>
             </div>
+
+            <div className="px-4 py-3 border-b border-gray-100 bg-white">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                <select
+                  value={abonoCuotaId}
+                  onChange={(event) => setAbonoCuotaId(event.target.value)}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                >
+                  {cuotas.map((cuota) => (
+                    <option key={cuota.id} value={cuota.id}>
+                      Cuota #{cuota.numero}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={abonoMonto}
+                  onChange={(event) => setAbonoMonto(event.target.value)}
+                  placeholder="Monto abonado"
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                />
+                <input
+                  type="date"
+                  value={abonoFecha}
+                  onChange={(event) => setAbonoFecha(event.target.value)}
+                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={handleRegistrarAbono}
+                  disabled={savingAbono}
+                  className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {savingAbono ? 'Registrando...' : 'Registrar abono'}
+                </button>
+              </div>
+            </div>
+
             {cuotas.length === 0 ? (
               <p className="p-4 text-sm text-gray-500">No hay cuotas registradas para esta matricula.</p>
             ) : (
@@ -71,8 +204,12 @@ export default function EnrollmentDetailModal({ enrollment, type, onClose }) {
                     <tr className="border-b border-gray-100 bg-white">
                       <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Nro cuota</th>
                       <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Monto</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Pagado</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Saldo</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Fecha vencimiento</th>
                       <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Fecha pago</th>
                       <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Estado</th>
+                      <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Accion</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -80,11 +217,35 @@ export default function EnrollmentDetailModal({ enrollment, type, onClose }) {
                       <tr key={cuota.id}>
                         <td className="px-4 py-2.5">{cuota.numero}</td>
                         <td className="px-4 py-2.5">Bs {formatCurrency(cuota.monto)}</td>
-                        <td className="px-4 py-2.5">{formatDate(cuota.fecha_pago)}</td>
                         <td className="px-4 py-2.5">
-                          <span className={`px-2 py-1 rounded-full text-xs ${cuota.estado === 'pagado' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                          Bs {formatCurrency(cuota.monto_pagado)}
+                        </td>
+                        <td className="px-4 py-2.5">Bs {formatCurrency(cuota.saldo_pendiente)}</td>
+                        <td className="px-4 py-2.5">
+                          <input
+                            type="date"
+                            value={editingRows[cuota.id]?.fecha_pago || ''}
+                            onChange={(event) => handleRowChange(cuota.id, 'fecha_pago', event.target.value)}
+                            className="px-2 py-1 border border-gray-200 rounded text-xs"
+                          />
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {formatDate(cuota.fecha_pago_real)}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <span className={`px-2 py-1 rounded-full text-xs ${cuota.estado === 'pagado' ? 'bg-emerald-100 text-emerald-700' : cuota.estado === 'parcial' ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-700'}`}>
                             {cuota.estado}
                           </span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <button
+                            type="button"
+                            onClick={() => saveCuota(cuota.id)}
+                            disabled={savingRowId === cuota.id}
+                            className="px-2.5 py-1 rounded bg-slate-900 text-white text-xs hover:bg-slate-800 disabled:opacity-60"
+                          >
+                            {savingRowId === cuota.id ? 'Guardando...' : 'Guardar'}
+                          </button>
                         </td>
                       </tr>
                     ))}

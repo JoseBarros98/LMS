@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (
     CursoViewSet,
+    CuotaPagoMatriculaViewSet,
     MatriculaCursoViewSet,
     MatriculaRutaViewSet,
     ProgresoLeccionViewSet,
@@ -18,6 +19,7 @@ router.register(r'rutas', RutaViewSet, basename='ruta')
 router.register(r'cursos', CursoViewSet, basename='curso')
 router.register(r'matriculas-ruta', MatriculaRutaViewSet, basename='matricula-ruta')
 router.register(r'matriculas-curso', MatriculaCursoViewSet, basename='matricula-curso')
+router.register(r'cuotas-pago', CuotaPagoMatriculaViewSet, basename='cuota-pago')
 router.register(r'progreso-leccion', ProgresoLeccionViewSet, basename='progreso-leccion')
 router.register(r'secciones', SeccionViewSet, basename='seccion')
 router.register(r'lecciones', LeccionViewSet, basename='leccion')
