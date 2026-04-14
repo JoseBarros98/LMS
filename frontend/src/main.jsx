@@ -19,6 +19,7 @@ import Matriculas from './pages/Matriculas'
 import Rutas from './pages/Rutas'
 import RutaCursos from './pages/RutaCursos'
 import RutaInscripciones from './pages/RutaInscripciones'
+import CursoInscripciones from './pages/CursoInscripciones'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -92,6 +93,12 @@ createRoot(document.getElementById('root')).render(
           <Route path="/rutas/:id/inscripciones" element={
             <PrivateRoute>
               <RutaInscripciones />
+            </PrivateRoute>
+          } />
+
+          <Route path="/courses/:id/inscripciones" element={
+            <PrivateRoute>
+              <CursoInscripciones />
             </PrivateRoute>
           } />
 
