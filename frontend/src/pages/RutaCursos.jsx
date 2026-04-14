@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, BookOpen, Edit, Trash2 } from 'lucide-react'
+import { ArrowLeft, BookOpen, Edit, Plus, Search, Trash2 } from 'lucide-react'
 import Layout from '../components/Layout'
 import CursoModal from '../components/CursoModal'
 import { cursosApi } from '../api/cursos'
@@ -18,6 +18,7 @@ export default function RutaCursos() {
   const [loading, setLoading] = useState(true)
   const [cursoEdit, setCursoEdit] = useState(null)
   const [cursoModalOpen, setCursoModalOpen] = useState(false)
+  const [busqueda, setBusqueda] = useState('')
 
   const isAdmin = user?.role?.name?.toLowerCase() === 'administrador'
 
@@ -53,22 +54,43 @@ export default function RutaCursos() {
     duracionTotal: cursos.reduce((acc, curso) => acc + Number(curso.duracion_total_min || 0), 0),
   }), [cursos])
 
+  const cursosFiltrados = useMemo(() => {
+    const query = busqueda.trim().toLowerCase()
+    if (!query) return cursos
+
+    return cursos.filter((curso) => {
+      const titulo = (curso.titulo || '').toLowerCase()
+      const nivel = (curso.nivel_label || curso.nivel || '').toLowerCase()
+      const estado = (curso.estado_label || curso.estado || '').toLowerCase()
+      const publicacion = curso.publicado ? 'publicado' : 'borrador'
+      return [titulo, nivel, estado, publicacion].some((value) => value.includes(query))
+    })
+  }, [busqueda, cursos])
+
   const openEditCurso = (curso) => {
     setCursoEdit(curso)
     setCursoModalOpen(true)
   }
 
-  const handleSubmitCurso = async (formData) => {
-    if (!cursoEdit) return
+  const openCreateCurso = () => {
+    setCursoEdit(null)
+    setCursoModalOpen(true)
+  }
 
+  const handleSubmitCurso = async (formData) => {
     try {
-      await cursosApi.updateCurso(cursoEdit.id, formData)
-      showSuccess('Curso actualizado correctamente.')
+      if (cursoEdit) {
+        await cursosApi.updateCurso(cursoEdit.id, formData)
+        showSuccess('Curso actualizado correctamente.')
+      } else {
+        await cursosApi.createCurso({ ...formData, ruta: id })
+        showSuccess('Curso creado correctamente en la ruta.')
+      }
       setCursoModalOpen(false)
       setCursoEdit(null)
       await loadData()
     } catch (error) {
-      showError(getApiErrorMessage(error, 'No se pudo actualizar el curso.'))
+      showError(getApiErrorMessage(error, 'No se pudo guardar el curso.'))
     }
   }
 
@@ -94,12 +116,22 @@ export default function RutaCursos() {
             <p className="text-sm text-gray-500">{ruta?.titulo || 'Ruta seleccionada'}</p>
           </div>
 
-          <button
-            onClick={() => navigate('/rutas')}
-            className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 inline-flex items-center gap-2"
-          >
-            <ArrowLeft size={15} /> Volver a Rutas
-          </button>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <button
+                onClick={openCreateCurso}
+                className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 inline-flex items-center gap-2"
+              >
+                <Plus size={15} /> Crear curso
+              </button>
+            )}
+            <button
+              onClick={() => navigate('/rutas')}
+              className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 inline-flex items-center gap-2"
+            >
+              <ArrowLeft size={15} /> Volver a Rutas
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -117,13 +149,34 @@ export default function RutaCursos() {
           </div>
         </div>
 
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <label className="relative block">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="search"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar curso en esta ruta"
+              className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
+            />
+          </label>
+        </div>
+
         {loading ? (
           <div className="flex justify-center items-center py-10">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           </div>
-        ) : cursos.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-xl p-6 text-sm text-gray-500">
-            Esta ruta no tiene cursos registrados.
+        ) : cursosFiltrados.length === 0 ? (
+          <div className="bg-white border border-gray-200 rounded-xl p-6 text-sm text-gray-500 space-y-3">
+            <p>{cursos.length === 0 ? 'Esta ruta no tiene cursos registrados.' : 'No hay cursos que coincidan con la busqueda.'}</p>
+            {isAdmin && cursos.length === 0 && (
+              <button
+                onClick={openCreateCurso}
+                className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 inline-flex items-center gap-2"
+              >
+                <Plus size={15} /> Crear curso en esta ruta
+              </button>
+            )}
           </div>
         ) : (
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -140,7 +193,7 @@ export default function RutaCursos() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {cursos.map((curso) => (
+                {cursosFiltrados.map((curso) => (
                   <tr key={curso.id}>
                     <td className="px-4 py-3">
                       <p className="font-medium text-gray-800">{curso.titulo}</p>
@@ -193,6 +246,8 @@ export default function RutaCursos() {
             key={cursoEdit?.id || 'route-course-edit'}
             cursoEdit={cursoEdit}
             rutas={rutas}
+            fixedRutaId={cursoEdit ? null : id}
+            fixedRutaTitulo={ruta?.titulo || ''}
             onSubmit={handleSubmitCurso}
             onClosed={() => {
               setCursoModalOpen(false)

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Search } from 'lucide-react'
 import Layout from '../components/Layout'
 import EnrollmentDetailModal from '../components/EnrollmentDetailModal'
 import StudentEnrollmentModal from '../components/StudentEnrollmentModal'
@@ -22,6 +22,7 @@ export default function RutaInscripciones() {
   const [rutaEnrollmentError, setRutaEnrollmentError] = useState('')
   const [submittingRutaEnrollment, setSubmittingRutaEnrollment] = useState(false)
   const [rutaEnrollmentTarget, setRutaEnrollmentTarget] = useState(null)
+  const [busqueda, setBusqueda] = useState('')
 
   const isAdmin = user?.role?.name?.toLowerCase() === 'administrador'
 
@@ -147,6 +148,20 @@ export default function RutaInscripciones() {
     }
   }
 
+  const matriculasFiltradas = useMemo(() => {
+    const query = busqueda.trim().toLowerCase()
+    if (!query) return matriculasRuta
+
+    return matriculasRuta.filter((matricula) => {
+      const nombre = (matricula.user_nombre || '').toLowerCase()
+      const ci = (matricula.user_ci || '').toLowerCase()
+      const telefono = (matricula.user_telefono || '').toLowerCase()
+      const estado = (matricula.user_estado || '').toLowerCase()
+      const matriculadoPor = (matricula.created_by_nombre || '').toLowerCase()
+      return [nombre, ci, telefono, estado, matriculadoPor].some((value) => value.includes(query))
+    })
+  }, [busqueda, matriculasRuta])
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -177,13 +192,28 @@ export default function RutaInscripciones() {
           </div>
         </div>
 
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <label className="relative block">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="search"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar por nombre, CI, telefono, estado o matriculador"
+              className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
+            />
+          </label>
+        </div>
+
         {loading ? (
           <div className="flex justify-center items-center py-10">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           </div>
-        ) : matriculasRuta.length === 0 ? (
+        ) : matriculasFiltradas.length === 0 ? (
           <div className="bg-white border border-gray-200 rounded-xl p-6 text-sm text-gray-500">
-            No hay estudiantes matriculados en esta ruta.
+            {matriculasRuta.length === 0
+              ? 'No hay estudiantes matriculados en esta ruta.'
+              : 'No se encontraron inscripciones con ese termino de busqueda.'}
           </div>
         ) : (
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -200,7 +230,7 @@ export default function RutaInscripciones() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {matriculasRuta.map((matricula) => (
+                {matriculasFiltradas.map((matricula) => (
                   <tr key={matricula.id}>
                     <td className="px-4 py-3">{matricula.user_nombre}</td>
                     <td className="px-4 py-3">{matricula.user_ci || '-'}</td>

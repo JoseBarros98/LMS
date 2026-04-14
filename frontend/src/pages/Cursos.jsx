@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowRight, BookOpen, Clock3, Edit, Filter, Lock, Plus, Presentation, Sparkles, Trash2 } from 'lucide-react'
+import { ArrowRight, BookOpen, Clock3, Edit, Filter, Lock, Plus, Presentation, Search, Sparkles, Trash2 } from 'lucide-react'
 import EnrollmentDetailModal from '../components/EnrollmentDetailModal'
 import Layout from '../components/Layout'
 import CursoModal from '../components/CursoModal'
@@ -38,6 +38,7 @@ export default function Cursos() {
   const [filtroRuta, setFiltroRuta] = useState('all')
   const [filtroEstado, setFiltroEstado] = useState('all')
   const [filtroPublicado, setFiltroPublicado] = useState('all')
+  const [busqueda, setBusqueda] = useState('')
 
   const isAdmin = user?.role?.name?.toLowerCase() === 'administrador'
 
@@ -72,14 +73,28 @@ export default function Cursos() {
     loadData()
   }, [loadData])
 
+  const cursosFiltrados = useMemo(() => {
+    const query = busqueda.trim().toLowerCase()
+    if (!query) return cursos
+
+    return cursos.filter((curso) => {
+      const titulo = (curso.titulo || '').toLowerCase()
+      const descripcion = (curso.descripcion || '').toLowerCase()
+      const rutaTitulo = (curso.ruta_titulo || rutaTitle(curso.ruta) || '').toLowerCase()
+      const nivel = (curso.nivel_label || curso.nivel || '').toLowerCase()
+      const estado = (curso.estado_label || curso.estado || '').toLowerCase()
+      return [titulo, descripcion, rutaTitulo, nivel, estado].some((value) => value.includes(query))
+    })
+  }, [busqueda, cursos])
+
   const cursosByRuta = useMemo(() => {
-    return cursos.reduce((acc, curso) => {
+    return cursosFiltrados.reduce((acc, curso) => {
       const key = curso.ruta || 'sin-ruta'
       if (!acc[key]) acc[key] = []
       acc[key].push(curso)
       return acc
     }, {})
-  }, [cursos])
+  }, [cursosFiltrados])
 
   const openCreate = () => {
     setCursoEdit(null)
@@ -208,11 +223,22 @@ export default function Cursos() {
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-200 p-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          <div className={`grid grid-cols-1 md:grid-cols-2 ${isAdmin ? 'xl:grid-cols-6' : 'xl:grid-cols-5'} gap-3`}>
             <div className="flex items-center gap-2 text-gray-600">
               <Filter size={16} />
               <span className="text-sm font-medium">Filtros</span>
             </div>
+
+            <label className="relative xl:col-span-2">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="search"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar curso, ruta, nivel o estado"
+                className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
+              />
+            </label>
 
             <select
               value={filtroRuta}
@@ -258,11 +284,15 @@ export default function Cursos() {
           <div className="flex justify-center items-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           </div>
-        ) : cursos.length === 0 ? (
+        ) : cursosFiltrados.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-2xl border border-gray-200">
             <BookOpen className="mx-auto text-gray-400 mb-4" size={42} />
-            <h3 className="text-lg font-medium text-gray-700 mb-2">No hay cursos para mostrar</h3>
-            <p className="text-sm text-gray-500">Ajusta los filtros o crea un nuevo curso.</p>
+            <h3 className="text-lg font-medium text-gray-700 mb-2">
+              {cursos.length === 0 ? 'No hay cursos para mostrar' : 'No se encontraron cursos'}
+            </h3>
+            <p className="text-sm text-gray-500">
+              {cursos.length === 0 ? 'Ajusta los filtros o crea un nuevo curso.' : 'Intenta con otro termino de busqueda.'}
+            </p>
           </div>
         ) : (
           Object.entries(cursosByRuta).map(([rutaId, cursosRuta]) => (

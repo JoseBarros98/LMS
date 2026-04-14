@@ -16,10 +16,13 @@ const defaultForm = {
   precio: 0,
 }
 
-export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed }) {
+export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed, fixedRutaId = null, fixedRutaTitulo = '' }) {
   const [formData, setFormData] = useState(() => {
     if (!cursoEdit) {
-      return defaultForm
+      return {
+        ...defaultForm,
+        ruta: fixedRutaId || '',
+      }
     }
 
     return {
@@ -71,7 +74,9 @@ export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed }) {
     e.preventDefault()
     setError('')
 
-    if (!formData.ruta) {
+    const rutaId = fixedRutaId || formData.ruta
+
+    if (!rutaId) {
       setError('Debes seleccionar una ruta para el curso.')
       return
     }
@@ -89,6 +94,7 @@ export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed }) {
     try {
       await onSubmit({
         ...formData,
+        ruta: rutaId,
         _imagen_portada_file: portadaFile,
         orden: Number(formData.orden) || 0,
         precio: Number(formData.precio) || 0,
@@ -133,22 +139,30 @@ export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed }) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Ruta</label>
-              <select
-                name="ruta"
-                value={formData.ruta}
-                onChange={handleChange}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                required
-              >
-                <option value="">Selecciona una ruta</option>
-                {rutas.map((ruta) => (
-                  <option key={ruta.id} value={ruta.id}>
-                    {ruta.titulo}
-                  </option>
-                ))}
-              </select>
-              {formData.ruta && rutasById[formData.ruta]?.descripcion && (
-                <p className="mt-1 text-xs text-gray-500">{rutasById[formData.ruta].descripcion}</p>
+              {fixedRutaId ? (
+                <div className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm bg-gray-50 text-gray-700">
+                  {fixedRutaTitulo || rutasById[fixedRutaId]?.titulo || 'Ruta seleccionada'}
+                </div>
+              ) : (
+                <select
+                  name="ruta"
+                  value={formData.ruta}
+                  onChange={handleChange}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  required
+                >
+                  <option value="">Selecciona una ruta</option>
+                  {rutas.map((ruta) => (
+                    <option key={ruta.id} value={ruta.id}>
+                      {ruta.titulo}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {(fixedRutaId ? rutasById[fixedRutaId]?.descripcion : formData.ruta && rutasById[formData.ruta]?.descripcion) && (
+                <p className="mt-1 text-xs text-gray-500">
+                  {fixedRutaId ? rutasById[fixedRutaId]?.descripcion : rutasById[formData.ruta]?.descripcion}
+                </p>
               )}
             </div>
 

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Edit, Plus, Sparkles, Trash2, UserPlus } from 'lucide-react'
+import { Edit, Plus, Search, Sparkles, Trash2, UserPlus } from 'lucide-react'
 import Layout from '../components/Layout'
 import RutaModal from '../components/RutaModal'
 import StudentEnrollmentModal from '../components/StudentEnrollmentModal'
@@ -21,6 +21,7 @@ export default function Rutas() {
   const [rutaEnrollmentTarget, setRutaEnrollmentTarget] = useState(null)
   const [rutaEnrollmentError, setRutaEnrollmentError] = useState('')
   const [submittingRutaEnrollment, setSubmittingRutaEnrollment] = useState(false)
+  const [busqueda, setBusqueda] = useState('')
 
   const isAdmin = user?.role?.name?.toLowerCase() === 'administrador'
 
@@ -132,6 +133,17 @@ export default function Rutas() {
     return acc
   }, {})
 
+  const rutasFiltradas = useMemo(() => {
+    const query = busqueda.trim().toLowerCase()
+    if (!query) return rutas
+
+    return rutas.filter((ruta) => {
+      const titulo = (ruta.titulo || '').toLowerCase()
+      const estado = ruta.publicado ? 'publicada' : 'borrador'
+      return titulo.includes(query) || estado.includes(query)
+    })
+  }, [busqueda, rutas])
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -152,15 +164,32 @@ export default function Rutas() {
           )}
         </div>
 
+        <div className="bg-white rounded-2xl border border-gray-200 p-4">
+          <label className="relative block">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="search"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar ruta por titulo o estado"
+              className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
+            />
+          </label>
+        </div>
+
         {loading ? (
           <div className="flex justify-center items-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           </div>
-        ) : rutas.length === 0 ? (
+        ) : rutasFiltradas.length === 0 ? (
           <div className="text-center py-12 bg-white rounded-2xl border border-gray-200">
             <Sparkles className="mx-auto text-gray-400 mb-4" size={42} />
-            <h3 className="text-lg font-medium text-gray-700 mb-2">No hay rutas para mostrar</h3>
-            <p className="text-sm text-gray-500">Crea una ruta para comenzar a organizar los cursos.</p>
+            <h3 className="text-lg font-medium text-gray-700 mb-2">
+              {rutas.length === 0 ? 'No hay rutas para mostrar' : 'No se encontraron rutas'}
+            </h3>
+            <p className="text-sm text-gray-500">
+              {rutas.length === 0 ? 'Crea una ruta para comenzar a organizar los cursos.' : 'Prueba con otro termino de busqueda.'}
+            </p>
           </div>
         ) : (
           <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
@@ -177,7 +206,7 @@ export default function Rutas() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {rutas.map((ruta) => (
+                {rutasFiltradas.map((ruta) => (
                   <tr key={ruta.id} className="hover:bg-gray-50 transition">
                     <td className="px-4 py-3">
                       <p className="font-semibold text-gray-800">{ruta.titulo}</p>
