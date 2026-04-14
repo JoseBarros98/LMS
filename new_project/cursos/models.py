@@ -7,6 +7,19 @@ from django.db.models import Sum
 from django.utils.text import slugify
 
 
+def _build_unique_slug(model_class, base_slug, instance_id=None, fallback_prefix='item'):
+    clean_base = (base_slug or '').strip('-')
+    if not clean_base:
+        clean_base = fallback_prefix
+
+    candidate = clean_base
+    suffix = 2
+    while model_class.objects.filter(slug=candidate).exclude(id=instance_id).exists():
+        candidate = f'{clean_base}-{suffix}'
+        suffix += 1
+    return candidate
+
+
 class Ruta(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     titulo = models.CharField(max_length=250, unique=True, verbose_name='Titulo')
@@ -26,8 +39,13 @@ class Ruta(models.Model):
         return self.titulo
 
     def save(self, *args, **kwargs):
-        if not self.slug and self.titulo:
-            self.slug = slugify(self.titulo)
+        if self.titulo:
+            self.slug = _build_unique_slug(
+                Ruta,
+                slugify(self.titulo),
+                instance_id=self.id,
+                fallback_prefix='ruta',
+            )
         super().save(*args, **kwargs)
 
 
@@ -53,7 +71,14 @@ class Curso(models.Model):
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    ruta = models.ForeignKey(Ruta, on_delete=models.CASCADE, related_name='cursos', verbose_name='Ruta')
+    ruta = models.ForeignKey(
+        Ruta,
+        on_delete=models.CASCADE,
+        related_name='cursos',
+        verbose_name='Ruta',
+        blank=True,
+        null=True,
+    )
     titulo = models.CharField(max_length=250, verbose_name='Titulo')
     descripcion = models.TextField(blank=True, null=True, verbose_name='Descripcion')
     imagen_portada = models.ImageField(upload_to='cursos/portadas/', blank=True, null=True, verbose_name='Imagen portada')
@@ -95,8 +120,22 @@ class Curso(models.Model):
         self.duracion_total_min = totals['duracion_total_min'] or 0
 
     def save(self, *args, **kwargs):
-        if not self.slug and self.titulo:
-            self.slug = slugify(self.titulo)
+        include_route_in_slug = bool(getattr(self, '_slug_with_route', False))
+        title_slug = slugify(self.titulo or '')
+
+        if include_route_in_slug and self.ruta_id:
+            route_title = getattr(self.ruta, 'titulo', '') if hasattr(self, 'ruta') else ''
+            route_slug = slugify(route_title)
+            base_slug = '-'.join(part for part in [route_slug, title_slug] if part)
+        else:
+            base_slug = title_slug
+
+        self.slug = _build_unique_slug(
+            Curso,
+            base_slug,
+            instance_id=self.id,
+            fallback_prefix='curso',
+        )
         super().save(*args, **kwargs)
 
 

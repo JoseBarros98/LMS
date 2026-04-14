@@ -4,9 +4,7 @@ import { AlertCircle, X } from 'lucide-react'
 const defaultForm = {
   titulo: '',
   descripcion: '',
-  orden: 0,
   publicado: false,
-  slug: '',
 }
 
 export default function RutaModal({ rutaEdit, onSubmit, onClosed }) {
@@ -19,9 +17,7 @@ export default function RutaModal({ rutaEdit, onSubmit, onClosed }) {
     return {
       titulo: rutaEdit.titulo || '',
       descripcion: rutaEdit.descripcion || '',
-      orden: Number(rutaEdit.orden) || 0,
       publicado: Boolean(rutaEdit.publicado),
-      slug: rutaEdit.slug || '',
     }
   })
   const [error, setError] = useState('')
@@ -48,10 +44,7 @@ export default function RutaModal({ rutaEdit, onSubmit, onClosed }) {
     }
 
     try {
-      await onSubmit({
-        ...formData,
-        orden: Number(formData.orden) || 0,
-      })
+      await onSubmit({ ...formData })
     } catch (submitError) {
       const apiError = submitError?.response?.data
       const message =
@@ -105,32 +98,6 @@ export default function RutaModal({ rutaEdit, onSubmit, onClosed }) {
               rows={3}
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
             />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Orden</label>
-              <input
-                type="number"
-                min="0"
-                name="orden"
-                value={formData.orden}
-                onChange={handleChange}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Slug</label>
-              <input
-                type="text"
-                name="slug"
-                value={formData.slug}
-                onChange={handleChange}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                placeholder="residencia-medica-2026"
-              />
-            </div>
           </div>
 
           <label className="flex items-center gap-2 text-sm text-gray-700">

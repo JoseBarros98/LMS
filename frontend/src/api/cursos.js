@@ -4,6 +4,7 @@ const sanitizePayload = (data) => {
   const payload = { ...data }
 
   ;[
+    'ruta',
     'descripcion',
     'imagen_portada_url',
     'slug',

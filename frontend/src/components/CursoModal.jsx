@@ -9,8 +9,6 @@ const defaultForm = {
   nivel: 'avanzado',
   estado: 'disponible',
   publicado: false,
-  orden: 0,
-  slug: '',
   video_intro_url: '',
   tiene_mediateca: false,
   precio: 0,
@@ -33,8 +31,6 @@ export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed, fixed
       nivel: cursoEdit.nivel || 'avanzado',
       estado: cursoEdit.estado || 'disponible',
       publicado: Boolean(cursoEdit.publicado),
-      orden: Number(cursoEdit.orden) || 0,
-      slug: cursoEdit.slug || '',
       video_intro_url: cursoEdit.video_intro_url || '',
       tiene_mediateca: Boolean(cursoEdit.tiene_mediateca),
       precio: Number(cursoEdit.precio) || 0,
@@ -44,6 +40,7 @@ export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed, fixed
   const [error, setError] = useState('')
 
   const isEditing = Boolean(cursoEdit)
+  const shouldAutoOrderOnCreate = Boolean(fixedRutaId && !isEditing)
 
   const rutasById = useMemo(() => {
     const map = {}
@@ -76,11 +73,6 @@ export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed, fixed
 
     const rutaId = fixedRutaId || formData.ruta
 
-    if (!rutaId) {
-      setError('Debes seleccionar una ruta para el curso.')
-      return
-    }
-
     if (!formData.titulo.trim()) {
       setError('El titulo es obligatorio.')
       return
@@ -94,9 +86,10 @@ export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed, fixed
     try {
       await onSubmit({
         ...formData,
-        ruta: rutaId,
+        ruta: rutaId || null,
         _imagen_portada_file: portadaFile,
-        orden: Number(formData.orden) || 0,
+        auto_orden_en_ruta: shouldAutoOrderOnCreate,
+        generar_slug_con_ruta: shouldAutoOrderOnCreate,
         precio: Number(formData.precio) || 0,
       })
     } catch (submitError) {
@@ -149,9 +142,8 @@ export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed, fixed
                   value={formData.ruta}
                   onChange={handleChange}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                  required
                 >
-                  <option value="">Selecciona una ruta</option>
+                  <option value="">Sin ruta</option>
                   {rutas.map((ruta) => (
                     <option key={ruta.id} value={ruta.id}>
                       {ruta.titulo}
@@ -247,18 +239,6 @@ export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed, fixed
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Orden</label>
-              <input
-                type="number"
-                min="0"
-                name="orden"
-                value={formData.orden}
-                onChange={handleChange}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-            </div>
-
-            <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Precio (Bs.)</label>
               <input
                 type="number"
@@ -268,18 +248,6 @@ export default function CursoModal({ cursoEdit, rutas, onSubmit, onClosed, fixed
                 value={formData.precio}
                 onChange={handleChange}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Slug</label>
-              <input
-                type="text"
-                name="slug"
-                value={formData.slug}
-                onChange={handleChange}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                placeholder="intromed-intensivo-2026"
               />
             </div>
 

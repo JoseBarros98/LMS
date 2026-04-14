@@ -47,7 +47,7 @@ export default function Cursos() {
       setLoading(true)
 
       const query = {}
-      if (filtroRuta !== 'all') query.ruta_id = filtroRuta
+      if (filtroRuta !== 'all' && filtroRuta !== 'sin-ruta') query.ruta_id = filtroRuta
       if (filtroEstado !== 'all') query.estado = filtroEstado
       if (filtroPublicado !== 'all') query.publicado = filtroPublicado === 'si'
 
@@ -75,9 +75,13 @@ export default function Cursos() {
 
   const cursosFiltrados = useMemo(() => {
     const query = busqueda.trim().toLowerCase()
-    if (!query) return cursos
+    const cursosConFiltroRuta = filtroRuta === 'sin-ruta'
+      ? cursos.filter((curso) => !curso.ruta)
+      : cursos
 
-    return cursos.filter((curso) => {
+    if (!query) return cursosConFiltroRuta
+
+    return cursosConFiltroRuta.filter((curso) => {
       const titulo = (curso.titulo || '').toLowerCase()
       const descripcion = (curso.descripcion || '').toLowerCase()
       const rutaTitulo = (curso.ruta_titulo || rutaTitle(curso.ruta) || '').toLowerCase()
@@ -85,7 +89,7 @@ export default function Cursos() {
       const estado = (curso.estado_label || curso.estado || '').toLowerCase()
       return [titulo, descripcion, rutaTitulo, nivel, estado].some((value) => value.includes(query))
     })
-  }, [busqueda, cursos])
+  }, [busqueda, cursos, filtroRuta])
 
   const cursosByRuta = useMemo(() => {
     return cursosFiltrados.reduce((acc, curso) => {
@@ -140,6 +144,9 @@ export default function Cursos() {
   }
 
   const rutaTitle = (rutaId) => {
+    if (!rutaId || rutaId === 'sin-ruta') {
+      return 'Sin ruta'
+    }
     return rutas.find((ruta) => ruta.id === rutaId)?.titulo || 'Ruta'
   }
 
@@ -246,6 +253,7 @@ export default function Cursos() {
               className="px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-sm"
             >
               <option value="all">Todas las rutas</option>
+              <option value="sin-ruta">Sin ruta</option>
               {rutas.map((ruta) => (
                 <option key={ruta.id} value={ruta.id}>
                   {ruta.titulo}
@@ -362,12 +370,7 @@ export default function Cursos() {
                         )}
                       </div>
 
-                      <div className={`flex items-center gap-2 ${isAdmin ? 'justify-between' : 'justify-end'}`}>
-                        {isAdmin && (
-                          <div className="text-xs text-gray-500">
-                            Orden #{curso.orden}
-                          </div>
-                        )}
+                      <div className="flex items-center gap-2 justify-end">
                         {isAdmin ? (
 
                           <div className="flex items-center gap-2">

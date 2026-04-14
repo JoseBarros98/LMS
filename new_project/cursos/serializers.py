@@ -3,7 +3,7 @@ import string
 from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
-from django.db.models import Sum
+from django.db.models import Max, Sum
 from rest_framework import serializers
 from core.models import User
 
@@ -127,11 +127,13 @@ class RutaSerializer(serializers.ModelSerializer):
 
 
 class CursoSerializer(serializers.ModelSerializer):
-    ruta_titulo = serializers.CharField(source='ruta.titulo', read_only=True)
+    ruta_titulo = serializers.SerializerMethodField()
     nivel_label = serializers.CharField(source='get_nivel_display', read_only=True)
     estado_label = serializers.CharField(source='get_estado_display', read_only=True)
     imagen_portada_url = serializers.SerializerMethodField()
     imagen_portada = serializers.ImageField(write_only=True, required=False, allow_null=True)
+    generar_slug_con_ruta = serializers.BooleanField(write_only=True, required=False, default=False)
+    auto_orden_en_ruta = serializers.BooleanField(write_only=True, required=False, default=False)
 
     class Meta:
         model = Curso
@@ -155,10 +157,18 @@ class CursoSerializer(serializers.ModelSerializer):
             'total_lecciones',
             'duracion_total_min',
             'precio',
+            'generar_slug_con_ruta',
+            'auto_orden_en_ruta',
             'created_at',
             'updated_at',
         ]
-        read_only_fields = ['created_at', 'updated_at']
+        read_only_fields = ['slug', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'ruta': {'required': False, 'allow_null': True},
+        }
+
+    def get_ruta_titulo(self, obj):
+        return obj.ruta.titulo if obj.ruta_id and obj.ruta else ''
 
     def get_imagen_portada_url(self, obj):
         if obj.imagen_portada:
@@ -173,6 +183,20 @@ class CursoSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({'imagen_portada': 'Debes subir una imagen de portada.'})
 
         return attrs
+
+    def create(self, validated_data):
+        generar_slug_con_ruta = validated_data.pop('generar_slug_con_ruta', False)
+        auto_orden_en_ruta = validated_data.pop('auto_orden_en_ruta', False)
+        ruta = validated_data.get('ruta')
+
+        if auto_orden_en_ruta and ruta:
+            max_orden = Curso.objects.filter(ruta=ruta).aggregate(max_orden=Max('orden')).get('max_orden') or 0
+            validated_data['orden'] = int(max_orden) + 1
+
+        curso = Curso(**validated_data)
+        curso._slug_with_route = generar_slug_con_ruta
+        curso.save()
+        return curso
 
 
 class ComentarioCursoSerializer(serializers.ModelSerializer):
@@ -615,7 +639,7 @@ class MatriculaCursoSerializer(serializers.ModelSerializer):
     user_estado = serializers.SerializerMethodField()
     curso_titulo = serializers.CharField(source='curso.titulo', read_only=True)
     ruta_id = serializers.UUIDField(source='curso.ruta_id', read_only=True)
-    ruta_titulo = serializers.CharField(source='curso.ruta.titulo', read_only=True)
+    ruta_titulo = serializers.SerializerMethodField()
     created_by_nombre = serializers.SerializerMethodField()
     cuotas = CuotaPagoMatriculaSerializer(source='cuotas_pago', many=True, read_only=True)
     fechas_pago = serializers.ListField(
@@ -670,6 +694,11 @@ class MatriculaCursoSerializer(serializers.ModelSerializer):
             filter(None, [obj.created_by.name, obj.created_by.paternal_surname, obj.created_by.maternal_surname])
         ).strip()
         return full_name or obj.created_by.email
+
+    def get_ruta_titulo(self, obj):
+        if not obj.curso or not obj.curso.ruta:
+            return ''
+        return obj.curso.ruta.titulo
 
     def validate(self, attrs):
         fecha_inicio = attrs.get('fecha_inicio')

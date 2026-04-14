@@ -1049,9 +1049,8 @@ export default function CursoDetalle() {
                             )}
                           </div>
 
-                          <div className={`flex items-center gap-3 text-xs text-gray-500 ${isAdmin ? 'justify-between' : 'justify-start'}`}>
+                          <div className="flex items-center gap-3 text-xs text-gray-500 justify-start">
                             <span>{isFolder ? `${item.children_count || 0} elementos` : badge}</span>
-                            {isAdmin && <span>Orden #{item.orden || 0}</span>}
                           </div>
 
                           <div className="inline-flex items-center gap-2 text-sm font-medium text-blue-700">
@@ -1093,7 +1092,6 @@ export default function CursoDetalle() {
                           <p className="font-semibold text-gray-800">{seccion.titulo}</p>
                           <p className="text-sm text-gray-600">{seccion.descripcion}</p>
                         </div>
-                        <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">Orden #{seccion.orden}</span>
                       </div>
 
                       <div className="flex items-center justify-between">
@@ -1118,7 +1116,7 @@ export default function CursoDetalle() {
                             <div key={leccion.id} className="flex items-start justify-between gap-2 p-2 bg-gray-50 rounded text-sm">
                               <div className="flex-1">
                                 <p className="font-medium text-gray-800">{leccion.titulo}</p>
-                                <p className="text-xs text-gray-600">{leccion.duracion_min} min • Orden #{leccion.orden}</p>
+                                <p className="text-xs text-gray-600">{leccion.duracion_min} min</p>
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className={`text-xs px-2 py-1 rounded ${leccion.publicado ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
@@ -1190,7 +1188,7 @@ export default function CursoDetalle() {
                         </button>
                       </div>
                       <p className="text-xs text-gray-600">
-                        {item.tipo} • {item.parent_titulo ? `Dentro de ${item.parent_titulo}` : 'Raíz'} • Orden #{item.orden || 0}
+                        {item.tipo} • {item.parent_titulo ? `Dentro de ${item.parent_titulo}` : 'Raíz'}
                       </p>
                       <span className={`text-xs px-2 py-1 rounded inline-block ${item.publicado ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
                         {item.publicado ? 'Publicado' : 'Borrador'}
@@ -1238,17 +1236,6 @@ export default function CursoDetalle() {
                   onChange={(e) => setSeccionForm({ ...seccionForm, descripcion: e.target.value })}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
                   rows="3"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Orden</label>
-                <input
-                  type="number"
-                  placeholder="Orden"
-                  value={seccionForm.orden}
-                  onChange={(e) => setSeccionForm({ ...seccionForm, orden: parseInt(e.target.value) || 0 })}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                 />
               </div>
 
@@ -1322,14 +1309,6 @@ export default function CursoDetalle() {
                 placeholder="Duración en minutos"
                 value={leccionForm.duracion_min}
                 onChange={(e) => setLeccionForm({ ...leccionForm, duracion_min: parseInt(e.target.value) || 0 })}
-                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-              <label className="block text-xs font-medium text-gray-500 mb-1">Orden</label>
-              <input
-                type="number"
-                placeholder="Orden"
-                value={leccionForm.orden}
-                onChange={(e) => setLeccionForm({ ...leccionForm, orden: parseInt(e.target.value) || 0 })}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
               <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -1526,17 +1505,6 @@ export default function CursoDetalle() {
                   )}
                 </>
               )}
-
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Orden</label>
-                <input
-                  type="number"
-                  placeholder="Orden"
-                  value={mediatecaForm.orden}
-                  onChange={(e) => setMediatecaForm({ ...mediatecaForm, orden: parseInt(e.target.value) || 0 })}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                />
-              </div>
 
               <label className="flex items-center gap-2 text-sm text-gray-700">
                 <input
