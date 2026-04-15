@@ -26,6 +26,13 @@ services:
       - DATABASE_URL=postgresql://postgres:root@db:5432/new_project_db
       - SECRET_KEY=django-insecure-vg^-0^%ae_!+n+#do8(+o#93ep36joi67osom%mekbw!ynw*3%
       - ALLOWED_HOSTS=localhost,127.0.0.1,backend
+      - DEFAULT_ADMIN_EMAIL=${DEFAULT_ADMIN_EMAIL:-admin@test.com}
+      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-Admin123456!}
+      - DEFAULT_ADMIN_NAME=${DEFAULT_ADMIN_NAME:-Admin}
+      - DEFAULT_ADMIN_PATERNAL_SURNAME=${DEFAULT_ADMIN_PATERNAL_SURNAME:-Root}
+      - DEFAULT_ADMIN_MATERNAL_SURNAME=${DEFAULT_ADMIN_MATERNAL_SURNAME:-Seed}
+      - DEFAULT_ADMIN_UNIVERSITY=${DEFAULT_ADMIN_UNIVERSITY:-LMS}
+      - DEFAULT_ADMIN_COUNTRY=${DEFAULT_ADMIN_COUNTRY:-Bolivia}
     depends_on:
       db:
         condition: service_healthy

@@ -75,9 +75,28 @@ La primera vez que levantes los servicios, ejecuta las migraciones:
 docker-compose exec backend python manage.py migrate
 ```
 
-### 5. Crear Superusuario
+### 5. Usuario Semilla de Administración
 
-Para acceder al admin de Django:
+Al ejecutar las migraciones en una instalación nueva, el proyecto crea automáticamente un usuario administrador con rol Administrador.
+
+Credenciales por defecto de desarrollo:
+
+```bash
+Email: admin@test.com
+Password: Admin123456!
+```
+
+Si quieres cambiarlas en otra computadora, define estas variables antes de levantar Docker:
+
+```env
+DEFAULT_ADMIN_EMAIL=admin@test.com
+DEFAULT_ADMIN_PASSWORD=Admin123456!
+DEFAULT_ADMIN_NAME=Admin
+```
+
+### 6. Crear Superusuario manualmente
+
+Si además quieres otro acceso al admin de Django:
 
 ```bash
 docker-compose exec backend python manage.py createsuperuser
@@ -98,6 +117,11 @@ DATABASE_URL=postgresql://postgres:root@db:5432/new_project_db
 POSTGRES_DB=new_project_db
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=root
+
+# Seed admin de desarrollo
+DEFAULT_ADMIN_EMAIL=admin@test.com
+DEFAULT_ADMIN_PASSWORD=Admin123456!
+DEFAULT_ADMIN_NAME=Admin
 ```
 
 ## Configuración Importante
