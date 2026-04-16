@@ -1,9 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { X } from 'lucide-react'
 import { simuladoresApi } from '../api/simuladores'
+import { cursosApi } from '../api/cursos'
 
 export default function SimuladorModal({ simulador, onClose, onSaved }) {
   const isEdit = Boolean(simulador)
+  const [routeForCourse, setRouteForCourse] = useState('')
+  const [courseScope, setCourseScope] = useState('ruta')
+  const [courseInput, setCourseInput] = useState('')
   const [form, setForm] = useState({
     titulo: simulador?.titulo || '',
     descripcion: simulador?.descripcion || '',
@@ -17,24 +21,124 @@ export default function SimuladorModal({ simulador, onClose, onSaved }) {
     tiempo_limite_minutos: simulador?.tiempo_limite_minutos ?? 60,
     max_intentos: simulador?.max_intentos ?? 1,
     publicado: simulador?.publicado ?? false,
+    curso: simulador?.curso || '',
+    ruta: simulador?.ruta || '',
   })
   const [imagen, setImagen] = useState(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [cursos, setCursos] = useState([])
+  const [rutas, setRutas] = useState([])
+
+  useEffect(() => {
+    const loadOptions = async () => {
+      try {
+        const [cursosData, rutasData] = await Promise.all([
+          cursosApi.getCursos({ solo_publicados: false }),
+          cursosApi.getRutas(),
+        ])
+        setCursos(Array.isArray(cursosData) ? cursosData : [])
+        setRutas(Array.isArray(rutasData) ? rutasData : [])
+      } catch {
+        setCursos([])
+        setRutas([])
+      }
+    }
+
+    loadOptions()
+  }, [])
+
+  useEffect(() => {
+    if (cursos.length === 0) return
+
+    if (simulador?.ruta && !simulador?.curso) {
+      setCourseScope('ruta')
+      setRouteForCourse(simulador.ruta)
+      return
+    }
+
+    if (!simulador?.curso) return
+
+    const currentCourse = cursos.find((c) => c.id === simulador.curso)
+    if (!currentCourse) return
+
+    if (currentCourse.ruta) {
+      setCourseScope('ruta')
+      setRouteForCourse(currentCourse.ruta)
+    } else {
+      setCourseScope('sin_ruta')
+      setRouteForCourse('')
+    }
+  }, [simulador?.curso, cursos])
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target
-    setForm((p) => ({ ...p, [name]: type === 'checkbox' ? checked : value }))
+    setForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }))
+  }
+
+  const cursosConRutaSeleccionada = cursos.filter(
+    (curso) => String(curso.ruta || '') === String(routeForCourse || '')
+  )
+  const cursosSinRuta = cursos.filter((curso) => !curso.ruta)
+
+  const availableCourses = courseScope === 'ruta' ? cursosConRutaSeleccionada : cursosSinRuta
+
+  const courseOptions = useMemo(() => {
+    return availableCourses.map((curso) => ({
+      id: curso.id,
+      label: curso.titulo,
+    }))
+  }, [availableCourses])
+
+  useEffect(() => {
+    if (!form.curso) {
+      setCourseInput('')
+      return
+    }
+    const selected = cursos.find((c) => c.id === form.curso)
+    if (selected) setCourseInput(selected.titulo)
+  }, [form.curso, cursos])
+
+  const handleRouteForCourseChange = (routeId) => {
+    setRouteForCourse(routeId)
+    setCourseInput('')
+    setForm((prev) => ({ ...prev, curso: '', ruta: '' }))
+  }
+
+  const handleCourseScopeChange = (scope) => {
+    setCourseScope(scope)
+    setRouteForCourse('')
+    setCourseInput('')
+    setForm((prev) => ({ ...prev, curso: '', ruta: '' }))
+  }
+
+  const handleCourseInputChange = (value) => {
+    setCourseInput(value)
+    const selected = courseOptions.find((opt) => opt.label === value)
+    setForm((prev) => ({ ...prev, curso: selected ? selected.id : '' }))
   }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!form.titulo.trim()) { setError('El título es obligatorio.'); return }
+
+    const payload = { ...form }
+
+    if (courseScope === 'ruta' && !routeForCourse) {
+      setError('Debes seleccionar primero una ruta para listar sus cursos.')
+      return
+    }
+    if (!form.curso) {
+      setError('Debes seleccionar un curso.')
+      return
+    }
+    payload.ruta = ''
+
     setSaving(true)
     setError('')
     try {
       const fd = new FormData()
-      Object.entries(form).forEach(([k, v]) => fd.append(k, v === null ? '' : v))
+      Object.entries(payload).forEach(([k, v]) => fd.append(k, v === null ? '' : v))
       if (imagen) fd.append('imagen_portada', imagen)
 
       if (isEdit) {
@@ -78,6 +182,65 @@ export default function SimuladorModal({ simulador, onClose, onSaved }) {
               className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
               placeholder="Descripción del simulador..." />
           </Field>
+
+          <div className="space-y-3">
+            <label className="block text-xs font-medium text-gray-600">Asociación del simulador</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleCourseScopeChange('ruta')}
+                className={`px-3 py-2 rounded-xl text-xs border transition ${courseScope === 'ruta'
+                  ? 'bg-indigo-50 border-indigo-300 text-indigo-700 font-medium'
+                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+              >
+                Curso dentro de una ruta
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCourseScopeChange('sin_ruta')}
+                className={`px-3 py-2 rounded-xl text-xs border transition ${courseScope === 'sin_ruta'
+                  ? 'bg-indigo-50 border-indigo-300 text-indigo-700 font-medium'
+                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+              >
+                Curso sin ruta
+              </button>
+            </div>
+
+            {courseScope === 'ruta' && (
+              <Field label="Ruta del curso">
+                <select
+                  value={routeForCourse}
+                  onChange={(e) => handleRouteForCourseChange(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Seleccionar ruta…</option>
+                  {rutas.map((ruta) => (
+                    <option key={ruta.id} value={ruta.id}>{ruta.titulo}</option>
+                  ))}
+                </select>
+              </Field>
+            )}
+
+            <Field label="Curso">
+              <input
+                list="simulador-course-options"
+                value={courseInput}
+                onChange={(e) => handleCourseInputChange(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Buscar y seleccionar curso por nombre..."
+                disabled={courseScope === 'ruta' && !routeForCourse}
+              />
+              <datalist id="simulador-course-options">
+                {courseOptions.map((curso) => (
+                  <option key={curso.id} value={curso.label} />
+                ))}
+              </datalist>
+            </Field>
+          </div>
+          <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+            La disponibilidad se calculará automáticamente por usuario al completar el curso/ruta (ventana de 7 días).
+            Estas fechas son solo una ventana global opcional.
+          </p>
 
           <Field label="URL de imagen portada">
             <input name="imagen_portada_url" value={form.imagen_portada_url} onChange={handleChange}

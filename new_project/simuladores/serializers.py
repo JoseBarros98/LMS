@@ -8,6 +8,7 @@ from .models import (
     Pregunta,
     RespuestaIntento,
     Simulador,
+    SimuladorDisponibilidadUsuario,
 )
 
 
@@ -84,10 +85,12 @@ class PreguntaPublicaSerializer(serializers.ModelSerializer):
 
 class SimuladorListSerializer(serializers.ModelSerializer):
     imagen_portada_url_full = serializers.SerializerMethodField()
-    esta_disponible = serializers.BooleanField(read_only=True)
+    esta_disponible = serializers.SerializerMethodField()
     curso_nombre = serializers.SerializerMethodField()
     ruta_nombre = serializers.SerializerMethodField()
     total_preguntas = serializers.SerializerMethodField()
+    fecha_apertura_efectiva = serializers.SerializerMethodField()
+    fecha_cierre_efectiva = serializers.SerializerMethodField()
 
     class Meta:
         model = Simulador
@@ -97,6 +100,7 @@ class SimuladorListSerializer(serializers.ModelSerializer):
             'curso', 'curso_nombre',
             'ruta', 'ruta_nombre',
             'fecha_apertura', 'fecha_cierre',
+            'fecha_apertura_efectiva', 'fecha_cierre_efectiva',
             'tiempo_limite_minutos', 'max_intentos',
             'publicado', 'esta_disponible',
             'total_preguntas',
@@ -117,6 +121,23 @@ class SimuladorListSerializer(serializers.ModelSerializer):
     def get_total_preguntas(self, obj):
         return obj.preguntas.count()
 
+    def get_esta_disponible(self, obj):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        return obj.is_available_for_user(user)
+
+    def get_fecha_apertura_efectiva(self, obj):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        apertura, _ = obj.get_effective_window_for_user(user)
+        return apertura
+
+    def get_fecha_cierre_efectiva(self, obj):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        _, cierre = obj.get_effective_window_for_user(user)
+        return cierre
+
 
 class SimuladorDetalleSerializer(SimuladorListSerializer):
     preguntas = PreguntaSerializer(many=True, read_only=True)
@@ -136,6 +157,57 @@ class SimuladorWriteSerializer(serializers.ModelSerializer):
             'tiempo_limite_minutos', 'max_intentos',
             'publicado',
         ]
+
+    def validate(self, attrs):
+        curso = attrs.get('curso', getattr(self.instance, 'curso', None))
+        ruta = attrs.get('ruta', getattr(self.instance, 'ruta', None))
+
+        if bool(curso) == bool(ruta):
+            raise serializers.ValidationError(
+                'Debes asociar el simulador a un curso o a una ruta (solo uno).'
+            )
+
+        return attrs
+
+
+class SimuladorDisponibilidadUsuarioSerializer(serializers.ModelSerializer):
+    user_email = serializers.CharField(source='user.email', read_only=True)
+    user_nombre = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SimuladorDisponibilidadUsuario
+        fields = [
+            'id',
+            'simulador',
+            'user',
+            'user_email',
+            'user_nombre',
+            'fecha_apertura',
+            'fecha_cierre',
+            'motivo',
+            'created_by',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = ['simulador', 'created_by', 'created_at', 'updated_at']
+
+    def get_user_nombre(self, obj):
+        user = obj.user
+        return ' '.join(
+            part for part in [user.name, user.paternal_surname, user.maternal_surname] if part
+        ).strip() or user.email
+
+    def validate(self, attrs):
+        fecha_apertura = attrs.get('fecha_apertura', getattr(self.instance, 'fecha_apertura', None))
+        fecha_cierre = attrs.get('fecha_cierre', getattr(self.instance, 'fecha_cierre', None))
+
+        if not fecha_apertura or not fecha_cierre:
+            raise serializers.ValidationError('Debes proporcionar fecha de apertura y fecha de cierre.')
+
+        if fecha_cierre <= fecha_apertura:
+            raise serializers.ValidationError('La fecha de cierre debe ser posterior a la apertura.')
+
+        return attrs
 
 
 # ── Respuestas e intentos ─────────────────────────────────────────────────────

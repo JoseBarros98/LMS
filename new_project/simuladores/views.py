@@ -5,6 +5,8 @@ from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from core.models import User
+from cursos.models import Curso, MatriculaCurso, MatriculaRuta
 
 from .models import (
     ExplicacionPregunta,
@@ -13,6 +15,7 @@ from .models import (
     Pregunta,
     RespuestaIntento,
     Simulador,
+    SimuladorDisponibilidadUsuario,
 )
 from .serializers import (
     EnviarRespuestasSerializer,
@@ -21,6 +24,7 @@ from .serializers import (
     IntentoSimuladorSerializer,
     PreguntaPublicaSerializer,
     PreguntaSerializer,
+    SimuladorDisponibilidadUsuarioSerializer,
     SimuladorDetalleSerializer,
     SimuladorListSerializer,
     SimuladorWriteSerializer,
@@ -34,6 +38,34 @@ def is_admin(user):
         and user.role
         and user.role.name.lower() == 'administrador'
     )
+
+
+def is_user_enrolled_for_simulator(simulador, user_id):
+    if simulador.ruta_id:
+        return MatriculaRuta.objects.filter(
+            ruta_id=simulador.ruta_id,
+            user_id=user_id,
+            activa=True,
+        ).exists()
+
+    if simulador.curso_id:
+        enrolled_course = MatriculaCurso.objects.filter(
+            curso_id=simulador.curso_id,
+            user_id=user_id,
+            activa=True,
+        ).exists()
+        if enrolled_course:
+            return True
+
+        course_route_id = Curso.objects.filter(id=simulador.curso_id).values_list('ruta_id', flat=True).first()
+        if course_route_id:
+            return MatriculaRuta.objects.filter(
+                ruta_id=course_route_id,
+                user_id=user_id,
+                activa=True,
+            ).exists()
+
+    return False
 
 
 class IsAdminOrReadOnly(permissions.BasePermission):
@@ -157,9 +189,14 @@ class SimuladorViewSet(viewsets.ModelViewSet):
     def iniciar_intento(self, request, pk=None):
         simulador = self.get_object()
 
-        if not simulador.esta_disponible:
+        if not simulador.is_available_for_user(request.user):
+            apertura, cierre = simulador.get_effective_window_for_user(request.user)
             return Response(
-                {'detail': 'Este simulador no está disponible en este momento.'},
+                {
+                    'detail': 'Este simulador no está disponible en este momento.',
+                    'fecha_apertura_efectiva': apertura,
+                    'fecha_cierre_efectiva': cierre,
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -263,6 +300,100 @@ class SimuladorViewSet(viewsets.ModelViewSet):
 
         result_serializer = IntentoSimuladorSerializer(intento, context={'request': request})
         return Response(result_serializer.data)
+
+    @action(
+        detail=True,
+        methods=['get', 'post', 'patch'],
+        url_path='disponibilidad-usuario',
+        permission_classes=[IsAuthenticated, IsAdminOrReadOnly],
+    )
+    def disponibilidad_usuario(self, request, pk=None):
+        simulador = self.get_object()
+
+        if not is_admin(request.user):
+            return Response({'detail': 'No tienes permisos para esta acción.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if request.method == 'GET':
+            user_id = request.query_params.get('user')
+            if not user_id:
+                return Response({'detail': 'Debes enviar ?user=<uuid>.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            if not is_user_enrolled_for_simulator(simulador, user_id):
+                return Response(
+                    {'detail': 'El usuario no está matriculado en el curso/ruta asociado a este simulador.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            override = SimuladorDisponibilidadUsuario.objects.filter(
+                simulador=simulador,
+                user_id=user_id,
+            ).first()
+
+            if override:
+                payload = SimuladorDisponibilidadUsuarioSerializer(override).data
+                payload['es_override'] = True
+                return Response(payload)
+
+            user = User.objects.filter(id=user_id).first()
+            apertura, cierre = simulador.get_effective_window_for_user(user)
+            return Response(
+                {
+                    'simulador': str(simulador.id),
+                    'user': user_id,
+                    'fecha_apertura': apertura,
+                    'fecha_cierre': cierre,
+                    'es_override': False,
+                }
+            )
+
+        user_id = request.data.get('user')
+        if not user_id:
+            return Response({'detail': 'El campo user es obligatorio.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not is_user_enrolled_for_simulator(simulador, user_id):
+            return Response(
+                {'detail': 'El usuario no está matriculado en el curso/ruta asociado a este simulador.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            disponibilidad = SimuladorDisponibilidadUsuario.objects.get(
+                simulador=simulador,
+                user_id=user_id,
+            )
+            serializer = SimuladorDisponibilidadUsuarioSerializer(
+                disponibilidad,
+                data=request.data,
+                partial=request.method == 'PATCH',
+            )
+        except SimuladorDisponibilidadUsuario.DoesNotExist:
+            serializer = SimuladorDisponibilidadUsuarioSerializer(data=request.data)
+
+        serializer.is_valid(raise_exception=True)
+        instance = serializer.save(simulador=simulador, created_by=request.user)
+        return Response(
+            SimuladorDisponibilidadUsuarioSerializer(instance).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(
+        detail=True,
+        methods=['get'],
+        url_path='disponibilidades-usuarios',
+        permission_classes=[IsAuthenticated, IsAdminOrReadOnly],
+    )
+    def disponibilidades_usuarios(self, request, pk=None):
+        simulador = self.get_object()
+
+        if not is_admin(request.user):
+            return Response({'detail': 'No tienes permisos para esta acción.'}, status=status.HTTP_403_FORBIDDEN)
+
+        disponibilidades = SimuladorDisponibilidadUsuario.objects.filter(
+            simulador=simulador,
+        ).select_related('user', 'created_by').order_by('-updated_at')
+
+        serializer = SimuladorDisponibilidadUsuarioSerializer(disponibilidades, many=True)
+        return Response(serializer.data)
 
     @action(detail=True, methods=['get'], url_path='mis-intentos')
     def mis_intentos(self, request, pk=None):

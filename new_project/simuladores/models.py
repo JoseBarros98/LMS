@@ -1,11 +1,15 @@
 import uuid
+from datetime import timedelta
 
 from django.db import models
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 
 class Simulador(models.Model):
+    AUTO_WINDOW_DAYS = 7
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     titulo = models.CharField(max_length=250, verbose_name='Título')
     descripcion = models.TextField(blank=True, null=True, verbose_name='Descripción')
@@ -14,7 +18,7 @@ class Simulador(models.Model):
     )
     imagen_portada_url = models.CharField(max_length=500, blank=True, null=True, verbose_name='Imagen portada URL')
 
-    # Asociación opcional a curso o ruta
+    # Asociación a curso o ruta (exactamente una)
     curso = models.ForeignKey(
         'cursos.Curso',
         on_delete=models.SET_NULL,
@@ -51,14 +55,142 @@ class Simulador(models.Model):
     def __str__(self):
         return self.titulo
 
+    def clean(self):
+        if bool(self.curso_id) == bool(self.ruta_id):
+            raise ValidationError('El simulador debe asociarse a un curso o a una ruta (solo uno).')
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    def _get_course_completion_datetime(self, user, curso_id):
+        from cursos.models import Leccion, ProgresoLeccion
+
+        lessons_qs = Leccion.objects.filter(seccion__curso_id=curso_id, publicado=True)
+        total_lessons = lessons_qs.count()
+        if total_lessons == 0:
+            return None
+
+        completed_qs = ProgresoLeccion.objects.filter(
+            user_id=user.id,
+            leccion__in=lessons_qs,
+            completada=True,
+        )
+
+        if completed_qs.count() < total_lessons:
+            return None
+
+        return completed_qs.order_by('-updated_at').values_list('updated_at', flat=True).first()
+
+    def _get_route_completion_datetime(self, user, ruta_id):
+        from cursos.models import Curso
+
+        course_ids = list(
+            Curso.objects.filter(ruta_id=ruta_id, publicado=True).values_list('id', flat=True)
+        )
+        if not course_ids:
+            return None
+
+        completion_dates = []
+        for course_id in course_ids:
+            completion_dt = self._get_course_completion_datetime(user, course_id)
+            if completion_dt is None:
+                return None
+            completion_dates.append(completion_dt)
+
+        return max(completion_dates) if completion_dates else None
+
+    def get_auto_window_for_user(self, user):
+        if not user or not getattr(user, 'is_authenticated', False):
+            return None, None
+
+        completion_dt = None
+        if self.curso_id:
+            completion_dt = self._get_course_completion_datetime(user, self.curso_id)
+        elif self.ruta_id:
+            completion_dt = self._get_route_completion_datetime(user, self.ruta_id)
+
+        if not completion_dt:
+            return None, None
+
+        return completion_dt, completion_dt + timedelta(days=self.AUTO_WINDOW_DAYS)
+
+    def get_effective_window_for_user(self, user):
+        override = self.disponibilidades_usuario.filter(user_id=getattr(user, 'id', None)).first()
+        if override:
+            return override.fecha_apertura, override.fecha_cierre
+
+        if self.fecha_apertura or self.fecha_cierre:
+            return self.fecha_apertura, self.fecha_cierre
+
+        return self.get_auto_window_for_user(user)
+
+    def is_available_for_user(self, user):
+        if not self.publicado:
+            return False
+
+        apertura, cierre = self.get_effective_window_for_user(user)
+        now = timezone.now()
+
+        if apertura and now < apertura:
+            return False
+        if cierre and now > cierre:
+            return False
+        return bool(apertura and cierre)
+
     @property
     def esta_disponible(self):
+        # Compatibilidad para código previo: evalúa solo la ventana global.
         now = timezone.now()
         if self.fecha_apertura and now < self.fecha_apertura:
             return False
         if self.fecha_cierre and now > self.fecha_cierre:
             return False
         return self.publicado
+
+
+class SimuladorDisponibilidadUsuario(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    simulador = models.ForeignKey(
+        Simulador,
+        on_delete=models.CASCADE,
+        related_name='disponibilidades_usuario',
+        verbose_name='Simulador',
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='disponibilidades_simulador',
+        verbose_name='Usuario',
+    )
+    fecha_apertura = models.DateTimeField(verbose_name='Fecha de apertura')
+    fecha_cierre = models.DateTimeField(verbose_name='Fecha de cierre')
+    motivo = models.CharField(max_length=250, blank=True, null=True, verbose_name='Motivo')
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        related_name='disponibilidades_simulador_creadas',
+        blank=True,
+        null=True,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Disponibilidad de simulador por usuario'
+        verbose_name_plural = 'Disponibilidades de simulador por usuario'
+        unique_together = [('simulador', 'user')]
+
+    def __str__(self):
+        return f'{self.simulador.titulo} - {self.user_id}'
+
+    def clean(self):
+        if self.fecha_cierre <= self.fecha_apertura:
+            raise ValidationError('La fecha de cierre debe ser posterior a la fecha de apertura.')
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 
 class Pregunta(models.Model):

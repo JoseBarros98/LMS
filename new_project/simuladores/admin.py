@@ -1,5 +1,13 @@
 from django.contrib import admin
-from .models import Simulador, Pregunta, Opcion, ExplicacionPregunta, IntentoSimulador, RespuestaIntento
+from .models import (
+    Simulador,
+    Pregunta,
+    Opcion,
+    ExplicacionPregunta,
+    IntentoSimulador,
+    RespuestaIntento,
+    SimuladorDisponibilidadUsuario,
+)
 
 
 class OpcionInline(admin.TabularInline):
@@ -28,3 +36,9 @@ class SimuladorAdmin(admin.ModelAdmin):
 class IntentoAdmin(admin.ModelAdmin):
     list_display = ['simulador', 'user', 'iniciado_en', 'completado', 'puntaje_obtenido']
     list_filter = ['completado']
+
+
+@admin.register(SimuladorDisponibilidadUsuario)
+class SimuladorDisponibilidadUsuarioAdmin(admin.ModelAdmin):
+    list_display = ['simulador', 'user', 'fecha_apertura', 'fecha_cierre', 'created_by']
+    search_fields = ['simulador__titulo', 'user__email']

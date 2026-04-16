@@ -11,6 +11,8 @@ import SimuladorModal from '../components/SimuladorModal'
 import PreguntasModal from '../components/PreguntasModal'
 import HistorialModal from '../components/HistorialModal'
 import InstruccionesModal from '../components/InstruccionesModal'
+import SimuladorDisponibilidadUsuarioModal from '../components/SimuladorDisponibilidadUsuarioModal'
+import SimuladorDisponibilidadesListModal from '../components/SimuladorDisponibilidadesListModal'
 
 const gradients = [
   'from-violet-600 via-purple-600 to-indigo-700',
@@ -45,6 +47,8 @@ export default function Simuladores() {
   const [modalPreguntas, setModalPreguntas] = useState(null) // simulador object
   const [modalHistorial, setModalHistorial] = useState(null) // simulador object
   const [modalInstrucciones, setModalInstrucciones] = useState(null) // simulador object
+  const [modalDisponibilidadUsuario, setModalDisponibilidadUsuario] = useState(null)
+  const [modalDisponibilidadesList, setModalDisponibilidadesList] = useState(null)
   const [intentosPorSimulador, setIntentosPorSimulador] = useState({}) // { [simuladorId]: intentos[] }
 
   useEffect(() => {
@@ -159,6 +163,8 @@ export default function Simuladores() {
                   onEdit={() => { setEditSimulador(sim); setModalSimulador(true) }}
                   onDelete={() => handleDeleteSimulador(sim.id)}
                   onGestionarPreguntas={() => setModalPreguntas(sim)}
+                  onGestionarDisponibilidadUsuario={() => setModalDisponibilidadUsuario({ simulador: sim, initialUserId: '' })}
+                  onVerDisponibilidades={() => setModalDisponibilidadesList(sim)}
                   onLoadIntentos={() => loadIntentos(sim.id)}
                 />
               )
@@ -195,6 +201,28 @@ export default function Simuladores() {
           onComenzar={() => handleIniciarExamen(modalInstrucciones)}
         />
       )}
+      {modalDisponibilidadUsuario && (
+        <SimuladorDisponibilidadUsuarioModal
+          simulador={modalDisponibilidadUsuario.simulador}
+          initialUserId={modalDisponibilidadUsuario.initialUserId}
+          onClose={() => setModalDisponibilidadUsuario(null)}
+          onSaved={() => {
+            const sim = modalDisponibilidadUsuario.simulador
+            setModalDisponibilidadUsuario(null)
+            setModalDisponibilidadesList(sim)
+          }}
+        />
+      )}
+      {modalDisponibilidadesList && (
+        <SimuladorDisponibilidadesListModal
+          simulador={modalDisponibilidadesList}
+          onEditarUsuario={(userId) => {
+            setModalDisponibilidadesList(null)
+            setModalDisponibilidadUsuario({ simulador: modalDisponibilidadesList, initialUserId: userId })
+          }}
+          onClose={() => setModalDisponibilidadesList(null)}
+        />
+      )}
     </Layout>
   )
 }
@@ -204,7 +232,7 @@ export default function Simuladores() {
 function SimuladorCard({
   sim, index, isAdmin,
   intentosCompletados,
-  onResolver, onVerHistorial, onEdit, onDelete, onGestionarPreguntas, onLoadIntentos,
+  onResolver, onVerHistorial, onEdit, onDelete, onGestionarPreguntas, onGestionarDisponibilidadUsuario, onVerDisponibilidades, onLoadIntentos,
 }) {
   const [loaded, setLoaded] = useState(false)
 
@@ -251,7 +279,11 @@ function SimuladorCard({
         {/* Date range */}
         <div className="flex items-center gap-2 bg-blue-50 rounded-lg px-3 py-2 text-xs text-blue-700">
           <Calendar size={13} />
-          <span>Disponible: {formatDateRange(sim.fecha_apertura, sim.fecha_cierre)}</span>
+          <span>Disponible: {formatDateRange(sim.fecha_apertura_efectiva, sim.fecha_cierre_efectiva)}</span>
+        </div>
+
+        <div className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+          Asociado a: <span className="font-medium text-gray-700">{sim.curso_nombre || sim.ruta_nombre || 'Sin asociación'}</span>
         </div>
 
         {/* Realizados */}
@@ -291,6 +323,15 @@ function SimuladorCard({
 
         {/* Buttons */}
         <div className="flex flex-col gap-2 mt-1">
+          {isAdmin && (
+            <button
+              onClick={onGestionarPreguntas}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition text-sm font-medium"
+            >
+              <Plus size={14} />
+              Añadir Pregunta
+            </button>
+          )}
           <button
             onClick={onResolver}
             disabled={!disponible}
@@ -310,11 +351,16 @@ function SimuladorCard({
           {isAdmin && (
             <div className="flex gap-2 mt-1">
               <button
-                onClick={onGestionarPreguntas}
-                className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition font-medium"
+                onClick={onGestionarDisponibilidadUsuario}
+                className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs text-sky-700 bg-sky-50 hover:bg-sky-100 rounded-xl transition font-medium"
               >
-                <Plus size={13} />
-                Preguntas
+                Usuario
+              </button>
+              <button
+                onClick={onVerDisponibilidades}
+                className="flex-1 flex items-center justify-center gap-1 px-3 py-2 text-xs text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-xl transition font-medium"
+              >
+                Habilitados
               </button>
               <button
                 onClick={onEdit}

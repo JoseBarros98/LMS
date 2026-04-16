@@ -65,6 +65,25 @@ export const simuladoresApi = {
     return res.data
   },
 
+  // ── Admin: ventana personalizada por usuario ──────────────────────────────
+
+  getDisponibilidadUsuario: async (simuladorId, userId) => {
+    const res = await api.get(`/simuladores/${simuladorId}/disponibilidad-usuario/`, {
+      params: { user: userId },
+    })
+    return res.data
+  },
+
+  guardarDisponibilidadUsuario: async (simuladorId, payload) => {
+    const res = await api.post(`/simuladores/${simuladorId}/disponibilidad-usuario/`, payload)
+    return res.data
+  },
+
+  getDisponibilidadesUsuarios: async (simuladorId) => {
+    const res = await api.get(`/simuladores/${simuladorId}/disponibilidades-usuarios/`)
+    return res.data
+  },
+
   // ── Estudiante: intentos ────────────────────────────────────────────────────
 
   iniciarIntento: async (simuladorId) => {
