@@ -27,7 +27,19 @@ def generate_enrollment_access_code(prefix='MAT'):
     return f'{prefix}-{token}'
 
 
-def _credit_installments_for_route_duration(duration_min):
+def _duration_to_total_minutes(duration_value):
+    if not duration_value:
+        return 0
+
+    if isinstance(duration_value, timedelta):
+        total_seconds = int(duration_value.total_seconds())
+        return (total_seconds + 59) // 60
+
+    return int(duration_value)
+
+
+def _credit_installments_for_route_duration(duration_value):
+    duration_min = _duration_to_total_minutes(duration_value)
     if duration_min <= 480:
         return 2
     if duration_min <= 1200:
@@ -106,7 +118,7 @@ class RegistrarPagoCuotaSerializer(serializers.Serializer):
 class RutaSerializer(serializers.ModelSerializer):
     total_cursos = serializers.IntegerField(read_only=True)
     precio_total = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
-    duracion_total_min = serializers.IntegerField(read_only=True)
+    duracion_total_min = serializers.DurationField(read_only=True)
 
     class Meta:
         model = Ruta
@@ -551,7 +563,7 @@ class MatriculaRutaSerializer(serializers.ModelSerializer):
             total_duracion=Sum('duracion_total_min'),
         )
         monto_total = Decimal(totals.get('total_precio') or 0).quantize(Decimal('0.01'))
-        total_duracion = int(totals.get('total_duracion') or 0)
+        total_duracion = totals.get('total_duracion') or timedelta()
 
         if plan_pago == MatriculaRuta.PLAN_CONTADO:
             numero_cuotas = requested_cuotas if requested_cuotas is not None else (self.instance.numero_cuotas if self.instance else 2)

@@ -5,7 +5,7 @@ import Layout from '../components/Layout'
 import CursoModal from '../components/CursoModal'
 import { cursosApi } from '../api/cursos'
 import { useAuth } from '../context/AuthContext'
-import { formatCurrencyBs, formatDuration } from '../utils/formatters'
+import { formatCurrencyBs, formatDuration, sumDurations } from '../utils/formatters'
 import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
 
 export default function RutaCursos() {
@@ -51,7 +51,7 @@ export default function RutaCursos() {
   const rutaResumen = useMemo(() => ({
     totalCursos: cursos.length,
     montoTotal: cursos.reduce((acc, curso) => acc + Number(curso.precio || 0), 0),
-    duracionTotal: cursos.reduce((acc, curso) => acc + Number(curso.duracion_total_min || 0), 0),
+    duracionTotal: sumDurations(cursos.map((curso) => curso.duracion_total_min)),
   }), [cursos])
 
   const cursosFiltrados = useMemo(() => {

@@ -24,7 +24,7 @@ const initialLeccionForm = {
   titulo: '',
   descripcion: '',
   video_url: '',
-  duracion_min: 0,
+  duracion_min: '00:00:00',
   orden: 0,
   publicado: true,
 }
@@ -434,7 +434,7 @@ export default function CursoDetalle() {
       titulo: leccion.titulo || '',
       descripcion: leccion.descripcion || '',
       video_url: leccion.video_url || '',
-      duracion_min: leccion.duracion_min || 0,
+      duracion_min: leccion.duracion_min || '00:00:00',
       orden: leccion.orden || 0,
       publicado: Boolean(leccion.publicado),
     })
@@ -790,7 +790,7 @@ export default function CursoDetalle() {
                     <div className="p-4 border-t border-gray-200 flex items-center justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold text-gray-800">{selectedLeccion.titulo}</p>
-                        <p className="text-xs text-gray-500">{selectedLeccion.duracion_min || 0} min</p>
+                        <p className="text-xs text-gray-500">{formatDuration(selectedLeccion.duracion_min)}</p>
                       </div>
                       <button
                         onClick={() => handleMarcarLeccion(selectedLeccion.id)}
@@ -872,7 +872,7 @@ export default function CursoDetalle() {
                                   </div>
                                   <div className="flex-1">
                                     <p className="text-gray-800 font-medium">{leccion.titulo}</p>
-                                    <p className="text-gray-500">{leccion.duracion_min} min</p>
+                                    <p className="text-gray-500">{formatDuration(leccion.duracion_min)}</p>
                                   </div>
                                   {!completada && (
                                     <button
@@ -1116,7 +1116,7 @@ export default function CursoDetalle() {
                             <div key={leccion.id} className="flex items-start justify-between gap-2 p-2 bg-gray-50 rounded text-sm">
                               <div className="flex-1">
                                 <p className="font-medium text-gray-800">{leccion.titulo}</p>
-                                <p className="text-xs text-gray-600">{leccion.duracion_min} min</p>
+                                <p className="text-xs text-gray-600">{formatDuration(leccion.duracion_min)}</p>
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className={`text-xs px-2 py-1 rounded ${leccion.publicado ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
@@ -1303,12 +1303,12 @@ export default function CursoDetalle() {
                 onChange={(e) => setLeccionForm({ ...leccionForm, video_url: e.target.value })}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
-              <label className="block text-xs font-medium text-gray-500 mb-1">Duración (min)</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Duración (HH:MM:SS)</label>
               <input
-                type="number"
-                placeholder="Duración en minutos"
+                type="time"
+                step="1"
                 value={leccionForm.duracion_min}
-                onChange={(e) => setLeccionForm({ ...leccionForm, duracion_min: parseInt(e.target.value) || 0 })}
+                onChange={(e) => setLeccionForm({ ...leccionForm, duracion_min: e.target.value || '00:00:00' })}
                 className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
               />
               <label className="flex items-center gap-2 text-sm text-gray-700">

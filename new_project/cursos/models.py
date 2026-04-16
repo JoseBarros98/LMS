@@ -1,4 +1,5 @@
 import uuid
+from datetime import timedelta
 from decimal import Decimal
 
 from django.db import models
@@ -91,7 +92,7 @@ class Curso(models.Model):
     video_intro_url = models.CharField(max_length=500, blank=True, null=True, verbose_name='Video intro URL')
     tiene_mediateca = models.BooleanField(default=False, verbose_name='Tiene mediateca')
     total_lecciones = models.SmallIntegerField(default=0, verbose_name='Total lecciones')
-    duracion_total_min = models.IntegerField(default=0, verbose_name='Duracion total en minutos')
+    duracion_total_min = models.DurationField(default=timedelta, verbose_name='Duracion total')
     precio = models.DecimalField(max_digits=10, decimal_places=2, default=0, verbose_name='Precio')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado en')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='Actualizado en')
@@ -117,7 +118,7 @@ class Curso(models.Model):
             duracion_total_min=Sum('duracion_min'),
         )
         self.total_lecciones = totals['total_lecciones'] or 0
-        self.duracion_total_min = totals['duracion_total_min'] or 0
+        self.duracion_total_min = totals['duracion_total_min'] or timedelta()
 
     def save(self, *args, **kwargs):
         include_route_in_slug = bool(getattr(self, '_slug_with_route', False))
@@ -166,7 +167,7 @@ class Leccion(models.Model):
     titulo = models.CharField(max_length=250)
     descripcion = models.TextField(blank=True, null=True)
     video_url = models.CharField(max_length=500)
-    duracion_min = models.PositiveIntegerField(default=0)
+    duracion_min = models.DurationField(default=timedelta)
     orden = models.SmallIntegerField(default=0)
     publicado = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)

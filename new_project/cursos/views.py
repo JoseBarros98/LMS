@@ -1,7 +1,7 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
-from django.db.models import Count, DecimalField, IntegerField, Q, Sum, Value
+from django.db.models import Count, DecimalField, DurationField, Q, Sum, Value
 from django.db import transaction
 from django.db.models.functions import Coalesce
 from rest_framework import permissions, status, viewsets
@@ -140,8 +140,8 @@ class RutaViewSet(viewsets.ModelViewSet):
         ),
         duracion_total_min=Coalesce(
             Sum('cursos__duracion_total_min'),
-            Value(0),
-            output_field=IntegerField(),
+            Value(timedelta()),
+            output_field=DurationField(),
         ),
     ).order_by('orden', 'titulo')
     serializer_class = RutaSerializer

@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { cursosApi } from './api/cursos'
 import Layout from './components/Layout'
 import { useAuth } from './context/AuthContext'
-import { formatCurrencyBs } from './utils/formatters'
+import { formatCurrencyBs, formatDuration } from './utils/formatters'
 
 const estadoBadge = {
   disponible: 'bg-emerald-100 text-emerald-700',
@@ -16,25 +16,6 @@ const nivelBadge = {
   basico: 'bg-sky-100 text-sky-700',
   intermedio: 'bg-indigo-100 text-indigo-700',
   avanzado: 'bg-fuchsia-100 text-fuchsia-700',
-}
-
-const formatDuration = (minutes) => {
-  if (!minutes) {
-    return 'Sin duracion definida'
-  }
-
-  if (minutes < 60) {
-    return `${minutes} min`
-  }
-
-  const hours = Math.floor(minutes / 60)
-  const remainingMinutes = minutes % 60
-
-  if (!remainingMinutes) {
-    return `${hours} h`
-  }
-
-  return `${hours} h ${remainingMinutes} min`
 }
 
 export default function App() {
