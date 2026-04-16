@@ -1,0 +1,7 @@
+from django.apps import AppConfig
+
+
+class SimuladoresConfig(AppConfig):
+    default_auto_field = 'django.db.models.BigAutoField'
+    name = 'simuladores'
+    verbose_name = 'Simuladores'

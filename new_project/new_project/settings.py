@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     'core',
     'tickets',
     'cursos',
+    'simuladores',
 ]
 
 MIDDLEWARE = [

@@ -20,6 +20,9 @@ import Rutas from './pages/Rutas'
 import RutaCursos from './pages/RutaCursos'
 import RutaInscripciones from './pages/RutaInscripciones'
 import CursoInscripciones from './pages/CursoInscripciones'
+import Simuladores from './pages/Simuladores'
+import SimuladorResolver from './pages/SimuladorResolver'
+import SimuladorResultado from './pages/SimuladorResultado'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -111,6 +114,24 @@ createRoot(document.getElementById('root')).render(
           <Route path="/recursos" element={
             <PrivateRoute>
               <Recursos />
+            </PrivateRoute>
+          } />
+
+          <Route path="/simuladores" element={
+            <PrivateRoute>
+              <Simuladores />
+            </PrivateRoute>
+          } />
+
+          <Route path="/simuladores/:simuladorId/resolver/:intentoId" element={
+            <PrivateRoute>
+              <SimuladorResolver />
+            </PrivateRoute>
+          } />
+
+          <Route path="/simuladores/:simuladorId/resultado/:intentoId" element={
+            <PrivateRoute>
+              <SimuladorResultado />
             </PrivateRoute>
           } />
         </Routes>
