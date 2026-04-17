@@ -9,9 +9,16 @@ from core.api_permissions import RoleActionPermission
 from .models import Ticket, TicketCategory, TicketResponse
 from .serializers import (
     TicketCategorySerializer, TicketSerializer, TicketCreateSerializer, TicketUpdateSerializer,
-    TicketResponseSerializer, TicketResponseCreateSerializer, NotificationSerializer
+    TicketResponseSerializer, TicketResponseCreateSerializer, NotificationSerializer,
+    NotificationSendSerializer,
 )
-from .services import notify_ticket_created, notify_ticket_status_changed
+from .services import (
+    notify_enrollment_expiry,
+    notify_installment_due,
+    notify_manual,
+    notify_ticket_created,
+    notify_ticket_status_changed,
+)
 
 
 @api_view(['GET'])
@@ -305,3 +312,76 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     def mark_all_read(self, request):
         self.get_queryset().filter(is_read=False).update(is_read=True)
         return Response({'detail': 'ok'}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'])
+    def send(self, request):
+        if not has_role_permission(request.user, 'notifications', 'create') and not is_admin_user(request.user):
+            return Response({'detail': 'No tienes permisos para enviar notificaciones.'}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = NotificationSendSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated = serializer.validated_data
+
+        target_mode = validated['target_mode']
+        recipients = []
+
+        if target_mode == NotificationSendSerializer.TARGET_USER:
+            recipients = [validated['target_user']]
+
+        elif target_mode == NotificationSendSerializer.TARGET_ROLES:
+            role_ids = list(validated['target_roles'].values_list('id', flat=True))
+            from core.models import User
+            recipients = list(
+                User.objects.filter(
+                    role_id__in=role_ids,
+                    is_active=True,
+                )
+                .exclude(id=request.user.id)
+                .distinct()
+            )
+
+        elif target_mode == NotificationSendSerializer.TARGET_ALL_STUDENTS:
+            from core.models import User
+            recipients = list(
+                User.objects.filter(
+                    role__name__iexact='estudiante',
+                    is_active=True,
+                )
+                .exclude(id=request.user.id)
+            )
+
+        sent_count = notify_manual(
+            recipients=recipients,
+            title=validated['title'],
+            message=validated['message'],
+            status_tag=validated.get('status_tag'),
+        )
+
+        return Response(
+            {
+                'detail': 'Notificaciones enviadas.',
+                'sent_count': sent_count,
+                'target_mode': target_mode,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=['post'])
+    def process_automatic(self, request):
+        if not has_role_permission(request.user, 'notifications', 'create') and not is_admin_user(request.user):
+            return Response({'detail': 'No tienes permisos para ejecutar este proceso.'}, status=status.HTTP_403_FORBIDDEN)
+
+        enrollment_days_before = int(request.data.get('enrollment_days_before', 7))
+        installment_days_before = int(request.data.get('installment_days_before', 3))
+
+        enrollment_created = notify_enrollment_expiry(days_before=enrollment_days_before)
+        installment_created = notify_installment_due(days_before=installment_days_before)
+
+        return Response(
+            {
+                'detail': 'Proceso de notificaciones automaticas ejecutado.',
+                'enrollment_notifications_created': enrollment_created,
+                'installment_notifications_created': installment_created,
+            },
+            status=status.HTTP_200_OK,
+        )

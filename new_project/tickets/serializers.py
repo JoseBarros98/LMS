@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from core.access import is_admin_user
+from core.models import Role
 from .models import TicketCategory, Ticket, TicketResponse, Notification
 
 User = get_user_model()
@@ -141,6 +142,8 @@ class TicketResponseCreateSerializer(serializers.ModelSerializer):
 
 class NotificationSerializer(serializers.ModelSerializer):
     recipient_name = serializers.CharField(source='recipient.name', read_only=True)
+    notification_type_label = serializers.CharField(source='get_notification_type_display', read_only=True)
+    status_tag_label = serializers.CharField(source='get_status_tag_display', read_only=True)
     ticket_id = serializers.IntegerField(source='ticket.id', read_only=True)
     ticket_priority = serializers.CharField(source='ticket.priority', read_only=True)
     ticket_priority_label = serializers.CharField(source='ticket.get_priority_display', read_only=True)
@@ -156,8 +159,12 @@ class NotificationSerializer(serializers.ModelSerializer):
             'ticket',
             'ticket_id',
             'notification_type',
+            'notification_type_label',
             'title',
             'message',
+            'status_tag',
+            'status_tag_label',
+            'trigger_key',
             'ticket_priority',
             'ticket_priority_label',
             'ticket_status',
@@ -166,3 +173,59 @@ class NotificationSerializer(serializers.ModelSerializer):
             'created_at',
         ]
         read_only_fields = fields
+
+
+class NotificationSendSerializer(serializers.Serializer):
+    TARGET_USER = 'user'
+    TARGET_ROLES = 'roles'
+    TARGET_ALL_STUDENTS = 'all_students'
+
+    TARGET_CHOICES = [
+        (TARGET_USER, 'Usuario especifico'),
+        (TARGET_ROLES, 'Por roles'),
+        (TARGET_ALL_STUDENTS, 'Todos los estudiantes'),
+    ]
+
+    target_mode = serializers.ChoiceField(choices=TARGET_CHOICES)
+    title = serializers.CharField(max_length=200)
+    message = serializers.CharField()
+    status_tag = serializers.ChoiceField(
+        choices=Notification.STATUS_CHOICES,
+        required=False,
+        default=Notification.STATUS_SYSTEM,
+    )
+    user_id = serializers.IntegerField(required=False)
+    role_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        allow_empty=False,
+    )
+
+    def validate(self, attrs):
+        target_mode = attrs.get('target_mode')
+        user_id = attrs.get('user_id')
+        role_ids = attrs.get('role_ids') or []
+
+        if target_mode == self.TARGET_USER:
+            if not user_id:
+                raise serializers.ValidationError({'user_id': 'Debes enviar user_id para target_mode="user".'})
+
+            user = User.objects.filter(id=user_id, is_active=True).first()
+            if not user:
+                raise serializers.ValidationError({'user_id': 'El usuario no existe o esta inactivo.'})
+
+            attrs['target_user'] = user
+
+        if target_mode == self.TARGET_ROLES:
+            if not role_ids:
+                raise serializers.ValidationError({'role_ids': 'Debes enviar al menos un role_id para target_mode="roles".'})
+
+            roles = Role.objects.filter(id__in=role_ids)
+            found_ids = set(roles.values_list('id', flat=True))
+            missing = sorted(set(role_ids) - found_ids)
+            if missing:
+                raise serializers.ValidationError({'role_ids': f'Roles no encontrados: {missing}.'})
+
+            attrs['target_roles'] = roles
+
+        return attrs

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { updateMyProfile } from '../api/users'
 import { notificationsApi } from '../api/notifications'
 import Layout from '../components/Layout'
-import { User, Save, Key, Shield, Lock, Computer, Bell, Check, CheckCheck, BellOff, Ticket, RefreshCw, Eye, Map, BookOpen, Calendar, BadgeCheck } from 'lucide-react'
+import { User, Save, Key, Shield, Lock, Computer, Bell, Check, CheckCheck, BellOff, Ticket, RefreshCw, Eye, Map, BookOpen, Calendar, BadgeCheck, AlertTriangle, Info, Server, X } from 'lucide-react'
 import { cursosApi } from '../api/cursos'
 import { showError, showSuccess } from '../utils/toast'
 
@@ -35,6 +35,7 @@ export default function Configuracion() {
   const [notifLoading, setNotifLoading] = useState(false)
   const [notifFilter, setNotifFilter] = useState('all') // 'all' | 'unread' | 'read'
   const [markingAll, setMarkingAll] = useState(false)
+  const [selectedNotification, setSelectedNotification] = useState(null)
 
   // â€” MatrÃ­culas â€”
   const [matriculasRuta, setMatriculasRuta] = useState([])
@@ -245,13 +246,57 @@ export default function Configuracion() {
   const notifTypeLabel = (type) => {
     if (type === 'ticket_created') return 'Ticket creado'
     if (type === 'ticket_status_changed') return 'Estado actualizado'
+    if (type === 'manual') return 'Comunicado'
+    if (type === 'enrollment_expiry') return 'Matricula por vencer'
+    if (type === 'installment_due') return 'Cuota por vencer'
     return 'Notificación'
   }
 
   const notifTypeColor = (type) => {
     if (type === 'ticket_created') return 'bg-blue-100 text-blue-600'
     if (type === 'ticket_status_changed') return 'bg-green-100 text-green-600'
+    if (type === 'manual') return 'bg-indigo-100 text-indigo-700'
+    if (type === 'enrollment_expiry') return 'bg-amber-100 text-amber-700'
+    if (type === 'installment_due') return 'bg-rose-100 text-rose-700'
     return 'bg-gray-100 text-gray-500'
+  }
+
+  const visualStatusLabel = (notification) => {
+    if (notification.status_tag_label) return notification.status_tag_label
+
+    const fallback = {
+      system: 'Sistema',
+      alert: 'Alerta',
+      info: 'Informativa',
+    }
+
+    if (notification.status_tag && fallback[notification.status_tag]) {
+      return fallback[notification.status_tag]
+    }
+
+    if (['enrollment_expiry', 'installment_due'].includes(notification.notification_type)) {
+      return 'Alerta'
+    }
+
+    return 'Sistema'
+  }
+
+  const visualStatusBadge = (notification) => {
+    const key = notification.status_tag || (['enrollment_expiry', 'installment_due'].includes(notification.notification_type) ? 'alert' : 'system')
+    const styles = {
+      system: 'bg-slate-100 text-slate-700',
+      alert: 'bg-rose-100 text-rose-700',
+      info: 'bg-blue-100 text-blue-700',
+    }
+    return styles[key] || styles.system
+  }
+
+  const visualStatusIcon = (notification) => {
+    const key = notification.status_tag || (['enrollment_expiry', 'installment_due'].includes(notification.notification_type) ? 'alert' : 'system')
+
+    if (key === 'alert') return <AlertTriangle size={13} />
+    if (key === 'info') return <Info size={13} />
+    return <Server size={13} />
   }
 
   const priorityBadge = (priority) => {
@@ -277,6 +322,10 @@ export default function Configuracion() {
   const handleViewTicketDetail = (notification) => {
     if (!notification.ticket_id) return
     navigate(`/tickets?ticketId=${notification.ticket_id}`)
+  }
+
+  const handleOpenNotificationDetail = (notification) => {
+    setSelectedNotification(notification)
   }
 
   
@@ -879,7 +928,9 @@ export default function Configuracion() {
                                     {notification.ticket_priority_label || notification.ticket_priority}
                                   </span>
                                 ) : (
-                                  <span className="text-xs text-gray-400">Sin ticket</span>
+                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${notifTypeColor(notification.notification_type)}`}>
+                                    {notification.notification_type_label || notifTypeLabel(notification.notification_type)}
+                                  </span>
                                 )}
                               </td>
 
@@ -897,7 +948,10 @@ export default function Configuracion() {
                                     {notification.ticket_status_label || notification.ticket_status}
                                   </span>
                                 ) : (
-                                  <span className="text-xs text-gray-400">Sin ticket</span>
+                                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${visualStatusBadge(notification)}`}>
+                                    {visualStatusIcon(notification)}
+                                    {visualStatusLabel(notification)}
+                                  </span>
                                 )}
                               </td>
 
@@ -914,10 +968,9 @@ export default function Configuracion() {
                                     Marcar como leída
                                   </button>
                                   <button
-                                    onClick={() => handleViewTicketDetail(notification)}
-                                    disabled={!notification.ticket_id}
-                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-gray-700 bg-gray-100 hover:bg-gray-200 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                    title="Ver detalle del ticket"
+                                    onClick={() => handleOpenNotificationDetail(notification)}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-gray-700 bg-gray-100 hover:bg-gray-200 transition"
+                                    title="Ver detalle de notificacion"
                                   >
                                     <Eye size={13} />
                                     Ver detalle
@@ -931,6 +984,66 @@ export default function Configuracion() {
                     </div>
                   )}
                 </div>
+
+                {selectedNotification && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+                    <div className="w-full max-w-xl rounded-2xl bg-white shadow-2xl">
+                      <div className="flex items-start justify-between border-b border-gray-100 px-5 py-4">
+                        <div>
+                          <h3 className="text-base font-semibold text-gray-800">Detalle de notificacion</h3>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {selectedNotification.created_at ? new Date(selectedNotification.created_at).toLocaleString('es-BO') : ''}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedNotification(null)}
+                          className="rounded-lg p-1.5 text-gray-500 hover:bg-gray-100"
+                        >
+                          <X size={15} />
+                        </button>
+                      </div>
+
+                      <div className="space-y-4 px-5 py-4">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800">{selectedNotification.title}</p>
+                          <p className="mt-1 text-sm text-gray-600 whitespace-pre-wrap">{selectedNotification.message}</p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${notifTypeColor(selectedNotification.notification_type)}`}>
+                            {selectedNotification.notification_type_label || notifTypeLabel(selectedNotification.notification_type)}
+                          </span>
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold ${visualStatusBadge(selectedNotification)}`}>
+                            {visualStatusIcon(selectedNotification)}
+                            {visualStatusLabel(selectedNotification)}
+                          </span>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${selectedNotification.is_read ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {selectedNotification.is_read ? 'Leida' : 'No leida'}
+                          </span>
+                        </div>
+
+                        {selectedNotification.ticket_id && (
+                          <div className="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                            <p className="text-xs font-semibold text-gray-600">Ticket relacionado</p>
+                            <p className="text-sm text-gray-700">#{selectedNotification.ticket_id}</p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedNotification(null)
+                                handleViewTicketDetail(selectedNotification)
+                              }}
+                              className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-gray-800 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-900"
+                            >
+                              <Eye size={13} />
+                              Ir al ticket
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

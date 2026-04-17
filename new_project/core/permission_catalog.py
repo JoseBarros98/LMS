@@ -9,6 +9,7 @@ PERMISSION_CATALOG = {
             'recursos',
             'flashcards',
             'tickets',
+            'notifications',
             'matriculas',
             'rutas',
             'categorias',
@@ -55,6 +56,10 @@ PERMISSION_CATALOG = {
     'tickets': {
         'label': 'Tickets',
         'actions': ['read', 'create', 'update', 'delete', 'read_own', 'update_own', 'respond'],
+    },
+    'notifications': {
+        'label': 'Notificaciones',
+        'actions': ['read', 'read_own', 'create'],
     },
     'categories': {
         'label': 'Categorias',

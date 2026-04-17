@@ -1,7 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
     LayoutDashboard, Calendar, BookOpen, Monitor, FolderOpen, Layers,
-    Ticket, ChevronLeft, ChevronRight,
+    Ticket, Bell, ChevronLeft, ChevronRight,
     User, ShieldCheck, Tag, UserPlus, Map
 } from 'lucide-react'
 import { usePermissions } from '../hooks/usePermissions'
@@ -19,6 +19,7 @@ const pageNameMap = {
     'Recursos': 'recursos',
     'Flashcards': 'flashcards',
     'Tickets': 'tickets',
+    'Notificaciones': 'notifications',
     'Categorías': 'categorias',
     'Usuarios': 'users',
     'Roles': 'roles',
@@ -52,6 +53,7 @@ const menu = [
         section: 'SOPORTE',
         items: [
             { label: 'Tickets', icon: Ticket, path: '/tickets' },
+            { label: 'Notificaciones', icon: Bell, path: '/notificaciones' },
             { label: 'Categorías', icon: Tag, path: '/categorias' },
         ]
 

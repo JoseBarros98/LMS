@@ -10,6 +10,7 @@ export const PERMISSIONS_CATALOG = {
       { key: 'recursos', label: 'Recursos' },
       { key: 'flashcards', label: 'Flashcards' },
       { key: 'tickets', label: 'Tickets' },
+      { key: 'notifications', label: 'Notificaciones' },
       { key: 'matriculas', label: 'Matriculas' },
       { key: 'rutas', label: 'Rutas' },
       { key: 'categorias', label: 'Categorias' },
@@ -133,6 +134,14 @@ export const PERMISSIONS_CATALOG = {
       { key: 'respond', label: 'Responder' },
     ],
   },
+  notifications: {
+    label: 'Notificaciones',
+    actions: [
+      { key: 'read', label: 'Ver Todas' },
+      { key: 'read_own', label: 'Ver Propias' },
+      { key: 'create', label: 'Enviar' },
+    ],
+  },
   categories: {
     label: 'Categorias',
     actions: [
@@ -185,6 +194,7 @@ export const RESOURCE_ORDER = [
   'resources',
   'flashcards',
   'tickets',
+  'notifications',
   'categories',
   'enrollments',
   'routes',

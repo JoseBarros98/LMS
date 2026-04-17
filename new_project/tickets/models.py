@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models import Q
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
@@ -201,10 +202,26 @@ class TicketResponse(models.Model):
 class Notification(models.Model):
     TYPE_TICKET_CREATED = 'ticket_created'
     TYPE_TICKET_STATUS_CHANGED = 'ticket_status_changed'
+    TYPE_MANUAL = 'manual'
+    TYPE_ENROLLMENT_EXPIRY = 'enrollment_expiry'
+    TYPE_INSTALLMENT_DUE = 'installment_due'
 
     TYPE_CHOICES = [
         (TYPE_TICKET_CREATED, 'Ticket creado'),
         (TYPE_TICKET_STATUS_CHANGED, 'Estado de ticket cambiado'),
+        (TYPE_MANUAL, 'Notificacion manual'),
+        (TYPE_ENROLLMENT_EXPIRY, 'Matricula por vencer'),
+        (TYPE_INSTALLMENT_DUE, 'Cuota proxima a vencer'),
+    ]
+
+    STATUS_SYSTEM = 'system'
+    STATUS_ALERT = 'alert'
+    STATUS_INFO = 'info'
+
+    STATUS_CHOICES = [
+        (STATUS_SYSTEM, 'Sistema'),
+        (STATUS_ALERT, 'Alerta'),
+        (STATUS_INFO, 'Informativa'),
     ]
 
     recipient = models.ForeignKey(
@@ -228,6 +245,19 @@ class Notification(models.Model):
     )
     title = models.CharField(max_length=200, verbose_name='Titulo')
     message = models.TextField(verbose_name='Mensaje')
+    status_tag = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_SYSTEM,
+        verbose_name='Estado visual',
+    )
+    trigger_key = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        verbose_name='Clave de disparo unica',
+        help_text='Clave opcional para evitar notificaciones automaticas duplicadas.',
+    )
     is_read = models.BooleanField(default=False, verbose_name='Leida')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creada en')
 
@@ -238,6 +268,14 @@ class Notification(models.Model):
         indexes = [
             models.Index(fields=['recipient', 'is_read']),
             models.Index(fields=['created_at']),
+            models.Index(fields=['trigger_key'], name='tickets_not_trigger_120b7f_idx'),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['recipient', 'trigger_key'],
+                condition=Q(trigger_key__isnull=False),
+                name='unique_notification_recipient_trigger_key',
+            ),
         ]
 
     def __str__(self):

@@ -27,6 +27,7 @@ import SimuladorRanking from './pages/SimuladorRanking'
 import Calendario from './pages/Calendario'
 import Flashcards from './pages/Flashcards'
 import StudentDashboard from './pages/StudentDashboard'
+import Notificaciones from './pages/Notificaciones'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -70,6 +71,12 @@ createRoot(document.getElementById('root')).render(
           <Route path="/tickets" element={
             <PrivateRoute requiredPage="tickets">
               <Tickets />
+            </PrivateRoute>
+          } />
+
+          <Route path="/notificaciones" element={
+            <PrivateRoute requiredPage="notifications">
+              <Notificaciones />
             </PrivateRoute>
           } />
 
