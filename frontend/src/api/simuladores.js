@@ -108,4 +108,9 @@ export const simuladoresApi = {
     const res = await api.get(`/simuladores/${simuladorId}/intentos/${intentoId}/resultado/`)
     return res.data
   },
+
+  getRanking: async (simuladorId) => {
+    const res = await api.get(`/simuladores/${simuladorId}/ranking/`)
+    return res.data
+  },
 }

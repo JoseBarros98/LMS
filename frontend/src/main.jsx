@@ -23,6 +23,7 @@ import CursoInscripciones from './pages/CursoInscripciones'
 import Simuladores from './pages/Simuladores'
 import SimuladorResolver from './pages/SimuladorResolver'
 import SimuladorResultado from './pages/SimuladorResultado'
+import SimuladorRanking from './pages/SimuladorRanking'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -132,6 +133,12 @@ createRoot(document.getElementById('root')).render(
           <Route path="/simuladores/:simuladorId/resultado/:intentoId" element={
             <PrivateRoute>
               <SimuladorResultado />
+            </PrivateRoute>
+          } />
+
+          <Route path="/simuladores/:simuladorId/ranking" element={
+            <PrivateRoute>
+              <SimuladorRanking />
             </PrivateRoute>
           } />
         </Routes>

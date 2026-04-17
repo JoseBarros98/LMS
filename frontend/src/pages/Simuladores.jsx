@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   Activity, Calendar, CheckCircle2, Clock, Edit2, History,
-  Monitor, Plus, Trash2, XCircle,
+  Monitor, Plus, Trash2, Trophy, XCircle,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
@@ -177,6 +177,7 @@ export default function Simuladores() {
                   intentosCompletados={intentosCmp}
                   onResolver={() => handleResolverClick(sim)}
                   onVerHistorial={() => handleVerHistorial(sim)}
+                  onVerRanking={() => navigate(`/simuladores/${sim.id}/ranking`)}
                   onEdit={() => { setEditSimulador(sim); setModalSimulador(true) }}
                   onDelete={() => handleDeleteSimulador(sim.id)}
                   onGestionarPreguntas={() => setModalPreguntas(sim)}
@@ -249,7 +250,7 @@ export default function Simuladores() {
 function SimuladorCard({
   sim, index, isAdmin,
   intentosCompletados,
-  onResolver, onVerHistorial, onEdit, onDelete, onGestionarPreguntas, onGestionarDisponibilidadUsuario, onVerDisponibilidades, onLoadIntentos,
+  onResolver, onVerHistorial, onVerRanking, onEdit, onDelete, onGestionarPreguntas, onGestionarDisponibilidadUsuario, onVerDisponibilidades, onLoadIntentos,
 }) {
   const [loaded, setLoaded] = useState(false)
   const [coverError, setCoverError] = useState(false)
@@ -373,6 +374,13 @@ function SimuladorCard({
           >
             <History size={14} />
             Ver Mis Intentos
+          </button>
+          <button
+            onClick={onVerRanking}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 text-purple-700 hover:bg-purple-50 rounded-xl transition text-sm font-medium border border-purple-200"
+          >
+            <Trophy size={14} />
+            Ver Ranking
           </button>
 
           {isAdmin && (

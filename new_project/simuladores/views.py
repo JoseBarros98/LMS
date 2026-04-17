@@ -68,6 +68,35 @@ def is_user_enrolled_for_simulator(simulador, user_id):
     return False
 
 
+def build_user_display_name(user):
+    return ' '.join(
+        part for part in [user.name, user.paternal_surname, user.maternal_surname] if part
+    ).strip() or user.email
+
+
+def build_user_initials(user):
+    tokens = [user.name, user.paternal_surname]
+    initials = ''.join((token or '').strip()[:1].upper() for token in tokens if token)
+    return initials or (user.email[:2].upper() if user.email else 'NA')
+
+
+def is_better_attempt(candidate, current_best):
+    if current_best is None:
+        return True
+
+    if candidate.puntaje_obtenido != current_best.puntaje_obtenido:
+        return candidate.puntaje_obtenido > current_best.puntaje_obtenido
+
+    candidate_time = candidate.tiempo_transcurrido_segundos or 10 ** 9
+    current_time = current_best.tiempo_transcurrido_segundos or 10 ** 9
+    if candidate_time != current_time:
+        return candidate_time < current_time
+
+    candidate_finished = candidate.finalizado_en or timezone.now()
+    current_finished = current_best.finalizado_en or timezone.now()
+    return candidate_finished < current_finished
+
+
 class IsAdminOrReadOnly(permissions.BasePermission):
     def has_permission(self, request, view):
         if request.method in permissions.SAFE_METHODS:
@@ -418,3 +447,73 @@ class SimuladorViewSet(viewsets.ModelViewSet):
 
         serializer = IntentoSimuladorSerializer(intento, context={'request': request})
         return Response(serializer.data)
+
+    @action(detail=True, methods=['get'], url_path='ranking')
+    def ranking(self, request, pk=None):
+        simulador = self.get_object()
+
+        completed_attempts = IntentoSimulador.objects.filter(
+            simulador=simulador,
+            completado=True,
+        ).select_related('user')
+
+        best_by_user = {}
+        user_attempt_count = {}
+
+        for attempt in completed_attempts:
+            user_id = str(attempt.user_id)
+            user_attempt_count[user_id] = user_attempt_count.get(user_id, 0) + 1
+            current_best = best_by_user.get(user_id)
+            if is_better_attempt(attempt, current_best):
+                best_by_user[user_id] = attempt
+
+        best_attempts = list(best_by_user.values())
+        best_attempts.sort(
+            key=lambda item: (
+                -(item.puntaje_obtenido or 0),
+                item.tiempo_transcurrido_segundos or 10 ** 9,
+                item.finalizado_en or timezone.now(),
+            )
+        )
+
+        ranking = []
+        my_position = None
+        my_user_id = str(request.user.id)
+
+        for idx, attempt in enumerate(best_attempts, start=1):
+            user = attempt.user
+            entry = {
+                'posicion': idx,
+                'user_id': str(user.id),
+                'user_nombre': build_user_display_name(user),
+                'user_email': user.email,
+                'iniciales': build_user_initials(user),
+                'puntaje': float(attempt.puntaje_obtenido or 0),
+                'tiempo_segundos': attempt.tiempo_transcurrido_segundos or 0,
+                'intento_id': str(attempt.id),
+                'intentos_completados': user_attempt_count.get(str(user.id), 0),
+                'finalizado_en': attempt.finalizado_en,
+            }
+            ranking.append(entry)
+            if str(user.id) == my_user_id:
+                my_position = entry
+
+        my_best_attempt = best_by_user.get(my_user_id)
+        my_stats = {
+            'mejor_puntaje': float((my_best_attempt.puntaje_obtenido if my_best_attempt else 0) or 0),
+            'mejor_tiempo_segundos': (my_best_attempt.tiempo_transcurrido_segundos if my_best_attempt else 0) or 0,
+            'intentos_completados': user_attempt_count.get(my_user_id, 0),
+        }
+
+        payload = {
+            'simulador': {
+                'id': str(simulador.id),
+                'titulo': simulador.titulo,
+            },
+            'total_participantes': len(ranking),
+            'top3': ranking[:3],
+            'ranking': ranking,
+            'mi_posicion': my_position,
+            'mis_estadisticas': my_stats,
+        }
+        return Response(payload)
