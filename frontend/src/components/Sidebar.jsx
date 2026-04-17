@@ -36,7 +36,7 @@ const menu = [
         section: 'ACADEMIA',
         items: [
             { label: 'Cursos', icon: BookOpen, path: '/courses' },
-            { label: 'Matrículas', icon: UserPlus, path: '/matriculas' },
+            // { label: 'Matrículas', icon: UserPlus, path: '/matriculas' },
             { label: 'Rutas', icon: Map, path: '/rutas' },
             { label: 'Simuladores', icon: Monitor, path: '/simuladores' },
             { label: 'Recursos', icon: FolderOpen, path: '/recursos' },

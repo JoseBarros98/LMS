@@ -15,7 +15,6 @@ export const PERMISSIONS_CATALOG = {
       { key: 'categorias', label: 'Categorias' },
       { key: 'users', label: 'Usuarios' },
       { key: 'roles', label: 'Roles' },
-      { key: 'configuracion', label: 'Configuracion' },
     ],
   },
   dashboard: {

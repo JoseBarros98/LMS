@@ -2,6 +2,30 @@ import { useState, useEffect } from 'react'
 import { X, Save } from 'lucide-react'
 import { PERMISSIONS_CATALOG, RESOURCE_ORDER } from '../constants/permissionsCatalog'
 
+function sanitizePermissions(permissions) {
+  const clean = {}
+
+  Object.entries(permissions || {}).forEach(([resource, actions]) => {
+    const config = PERMISSIONS_CATALOG[resource]
+    if (!config || !Array.isArray(actions)) return
+
+    const validActions = new Set(config.actions.map(({ key }) => key))
+    const dedup = []
+
+    actions.forEach((action) => {
+      if (typeof action === 'string' && validActions.has(action) && !dedup.includes(action)) {
+        dedup.push(action)
+      }
+    })
+
+    if (dedup.length > 0) {
+      clean[resource] = dedup
+    }
+  })
+
+  return clean
+}
+
 export default function RoleModal({ role, onClose, onSave }) {
   const [formData, setFormData] = useState({
     name: '',
@@ -15,7 +39,7 @@ export default function RoleModal({ role, onClose, onSave }) {
       setFormData({
         name: role.name || '',
         description: role.description || '',
-        permissions: role.permissions || {}
+        permissions: sanitizePermissions(role.permissions || {})
       })
     } else {
       setFormData({

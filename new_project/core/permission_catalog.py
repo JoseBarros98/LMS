@@ -14,8 +14,11 @@ PERMISSION_CATALOG = {
             'categorias',
             'users',
             'roles',
-            'configuracion',
         ],
+    },
+    'dashboard': {
+        'label': 'Dashboard',
+        'actions': ['overview', 'academy', 'support', 'activity'],
     },
     'dashboard': {
         'label': 'Dashboard',
