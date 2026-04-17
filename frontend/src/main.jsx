@@ -25,6 +25,7 @@ import SimuladorResolver from './pages/SimuladorResolver'
 import SimuladorResultado from './pages/SimuladorResultado'
 import SimuladorRanking from './pages/SimuladorRanking'
 import Calendario from './pages/Calendario'
+import Flashcards from './pages/Flashcards'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -146,6 +147,18 @@ createRoot(document.getElementById('root')).render(
           <Route path="/calendario" element={
             <PrivateRoute>
               <Calendario />
+            </PrivateRoute>
+          } />
+
+          <Route path="/flashcards" element={
+            <PrivateRoute>
+              <Flashcards />
+            </PrivateRoute>
+          } />
+
+          <Route path="/flashcards/:groupId" element={
+            <PrivateRoute>
+              <Flashcards />
             </PrivateRoute>
           } />
         </Routes>
