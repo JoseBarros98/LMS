@@ -45,7 +45,7 @@ const shuffleArray = (values) => {
   return list
 }
 
-function GroupCard({ group, colorIndex, onStudy, onCreateCard, onManageCards, owned }) {
+function GroupCard({ group, colorIndex, onStudy, onCreateCard, onManageCards, onDeleteGroup, owned }) {
   const gradient = themeBarClasses[colorIndex % themeBarClasses.length]
 
   return (
@@ -113,6 +113,16 @@ function GroupCard({ group, colorIndex, onStudy, onCreateCard, onManageCards, ow
                 title="Editar o eliminar tarjetas"
               >
                 <Edit3 size={16} />
+              </button>
+            )}
+            {owned && (
+              <button
+                type="button"
+                onClick={() => onDeleteGroup(group)}
+                className="h-8 w-8 inline-flex items-center justify-center rounded-lg border border-rose-300 text-rose-500 hover:text-rose-600"
+                title="Eliminar grupo"
+              >
+                <Trash2 size={16} />
               </button>
             )}
             <button
@@ -597,6 +607,7 @@ export default function Flashcards() {
   const [cardForm, setCardForm] = useState({ pregunta: '', respuesta: '' })
   const [creatingCard, setCreatingCard] = useState(false)
   const [manageCardsTarget, setManageCardsTarget] = useState(null)
+  const [deletingGroupId, setDeletingGroupId] = useState(null)
 
   const [studyGroup, setStudyGroup] = useState(null)
   const [loadingStudy, setLoadingStudy] = useState(false)
@@ -739,6 +750,31 @@ export default function Flashcards() {
     }
   }
 
+  const handleDeleteGroup = async (group) => {
+    const ok = window.confirm(`¿Seguro que deseas eliminar el grupo "${group.nombre}"? Esta accion eliminara todas sus tarjetas.`)
+    if (!ok) return
+
+    try {
+      setDeletingGroupId(group.id)
+      await flashcardsApi.deleteGroup(group.id)
+      showSuccess('Grupo eliminado correctamente.')
+
+      if (manageCardsTarget && Number(manageCardsTarget.id) === Number(group.id)) {
+        setManageCardsTarget(null)
+      }
+
+      if (groupId && Number(groupId) === Number(group.id)) {
+        navigate('/flashcards', { replace: true })
+      }
+
+      await loadGroups()
+    } catch (error) {
+      showError(getApiErrorMessage(error, 'No se pudo eliminar el grupo.'))
+    } finally {
+      setDeletingGroupId(null)
+    }
+  }
+
   return (
     <Layout>
       {groupId ? (
@@ -825,6 +861,7 @@ export default function Flashcards() {
                       onStudy={handleOpenStudy}
                       onCreateCard={() => {}}
                       onManageCards={() => {}}
+                      onDeleteGroup={() => {}}
                       owned={false}
                     />
                   ))}
@@ -869,6 +906,7 @@ export default function Flashcards() {
                       onStudy={handleOpenStudy}
                       onCreateCard={(targetGroup) => setCreateCardTarget(targetGroup)}
                       onManageCards={(targetGroup) => setManageCardsTarget(targetGroup)}
+                      onDeleteGroup={(targetGroup) => handleDeleteGroup(targetGroup)}
                       owned
                     />
                   ))}
@@ -877,7 +915,10 @@ export default function Flashcards() {
             </div>
           </section>
 
-          <div className="text-xs text-slate-400">Total de grupos visibles: {listCount}</div>
+          <div className="text-xs text-slate-400">
+            Total de grupos visibles: {listCount}
+            {deletingGroupId ? ' | Eliminando grupo...' : ''}
+          </div>
         </div>
       )}
 
