@@ -14,6 +14,7 @@ import HistorialModal from '../components/HistorialModal'
 import InstruccionesModal from '../components/InstruccionesModal'
 import SimuladorDisponibilidadUsuarioModal from '../components/SimuladorDisponibilidadUsuarioModal'
 import SimuladorDisponibilidadesListModal from '../components/SimuladorDisponibilidadesListModal'
+import { showConfirm } from '../utils/toast'
 
 const gradients = [
   'from-violet-600 via-purple-600 to-indigo-700',
@@ -144,7 +145,7 @@ export default function Simuladores() {
   }
 
   const handleDeleteSimulador = async (id) => {
-    if (!window.confirm('¿Eliminar este simulador?')) return
+    if (!await showConfirm('¿Eliminar este simulador?')) return
     try {
       await simuladoresApi.deleteSimulador(id)
       loadSimuladores()

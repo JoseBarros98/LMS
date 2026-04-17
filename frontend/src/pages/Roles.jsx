@@ -4,7 +4,7 @@ import RoleModal from '../components/RoleModal'
 import { Pencil, ShieldCheck, Trash2, Settings, Users } from 'lucide-react'
 import Layout from '../components/Layout'
 import { usePermissions } from '../hooks/usePermissions'
-import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
+import { getApiErrorMessage, showConfirm, showError, showSuccess } from '../utils/toast'
 
 export default function Roles() {
   const [roles, setRoles] = useState([])
@@ -42,7 +42,7 @@ export default function Roles() {
   }
 
   const handleDelete = async (role) => {
-    if (window.confirm(`¿Estás seguro de eliminar el rol "${role.name}"?`)) {
+    if (await showConfirm(`¿Estás seguro de eliminar el rol "${role.name}"?`)) {
       try {
         await deleteRole(role.id)
         setRoles(roles.filter(r => r.id !== role.id))

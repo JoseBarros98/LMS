@@ -6,7 +6,7 @@ import CursoModal from '../components/CursoModal'
 import { cursosApi } from '../api/cursos'
 import { useAuth } from '../context/AuthContext'
 import { formatCurrencyBs, formatDuration } from '../utils/formatters'
-import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
+import { getApiErrorMessage, showConfirm, showError, showSuccess } from '../utils/toast'
 
 const estadoBadge = {
   disponible: 'bg-emerald-100 text-emerald-700',
@@ -120,7 +120,7 @@ export default function Cursos() {
   }
 
   const handleDeleteCurso = async (curso) => {
-    const ok = window.confirm(`¿Eliminar el curso "${curso.titulo}"? Esta accion no se puede deshacer.`)
+    const ok = await showConfirm(`¿Eliminar el curso "${curso.titulo}"? Esta accion no se puede deshacer.`)
     if (!ok) {
       return
     }

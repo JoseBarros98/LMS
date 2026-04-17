@@ -6,7 +6,7 @@ import CursoModal from '../components/CursoModal'
 import { cursosApi } from '../api/cursos'
 import { useAuth } from '../context/AuthContext'
 import { formatCurrencyBs, formatDuration, sumDurations } from '../utils/formatters'
-import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
+import { getApiErrorMessage, showConfirm, showError, showSuccess } from '../utils/toast'
 
 export default function RutaCursos() {
   const navigate = useNavigate()
@@ -95,7 +95,7 @@ export default function RutaCursos() {
   }
 
   const handleDeleteCurso = async (curso) => {
-    const ok = window.confirm(`¿Eliminar el curso "${curso.titulo}" de esta ruta?`)
+    const ok = await showConfirm(`¿Eliminar el curso "${curso.titulo}" de esta ruta?`)
     if (!ok) return
 
     try {

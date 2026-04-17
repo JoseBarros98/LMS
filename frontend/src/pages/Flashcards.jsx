@@ -19,7 +19,7 @@ import {
 } from 'lucide-react'
 import Layout from '../components/Layout'
 import { flashcardsApi } from '../api/flashcards'
-import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
+import { getApiErrorMessage, showConfirm, showError, showSuccess } from '../utils/toast'
 import { usePermissions } from '../hooks/usePermissions'
 
 const themeBarClasses = [
@@ -474,7 +474,7 @@ function ManageCardsModal({ group, onClose, onUpdated }) {
   }
 
   const removeCard = async (card) => {
-    const ok = window.confirm('¿Seguro que deseas eliminar esta tarjeta?')
+    const ok = await showConfirm('¿Seguro que deseas eliminar esta tarjeta?')
     if (!ok) return
 
     try {
@@ -756,7 +756,7 @@ export default function Flashcards() {
   }
 
   const handleDeleteGroup = async (group) => {
-    const ok = window.confirm(`¿Seguro que deseas eliminar el grupo "${group.nombre}"? Esta accion eliminara todas sus tarjetas.`)
+    const ok = await showConfirm(`¿Seguro que deseas eliminar el grupo "${group.nombre}"? Esta accion eliminara todas sus tarjetas.`)
     if (!ok) return
 
     try {

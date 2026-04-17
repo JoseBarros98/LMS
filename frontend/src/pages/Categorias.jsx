@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import Layout from '../components/Layout'
 import { ticketsApi } from '../api/tickets'
+import { showConfirm } from '../utils/toast'
 import CategoryModal from '../components/CategoryModal'
 import { 
   Plus, 
@@ -84,7 +85,7 @@ export default function Categorias() {
     const nextStatus = category.status === 'active' ? 'inactive' : 'active'
     const actionLabel = nextStatus === 'active' ? 'reactivar' : 'desactivar'
 
-    if (!confirm(`¿Estás seguro de ${actionLabel} esta categoría?`)) {
+    if (!await showConfirm(`¿Estás seguro de ${actionLabel} esta categoría?`)) {
       return
     }
 

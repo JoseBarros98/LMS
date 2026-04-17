@@ -7,7 +7,7 @@ import StudentEnrollmentModal from '../components/StudentEnrollmentModal'
 import { cursosApi } from '../api/cursos'
 import { useAuth } from '../context/AuthContext'
 import { formatCurrencyBs, formatDuration } from '../utils/formatters'
-import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
+import { getApiErrorMessage, showConfirm, showError, showSuccess } from '../utils/toast'
 
 export default function Rutas() {
   const navigate = useNavigate()
@@ -84,7 +84,7 @@ export default function Rutas() {
       ? `La ruta "${ruta.titulo}" tiene cursos asociados y tambien se eliminaran. ¿Deseas continuar?`
       : `¿Eliminar la ruta "${ruta.titulo}"?`
 
-    const ok = window.confirm(message)
+    const ok = await showConfirm(message)
     if (!ok) return
 
     try {

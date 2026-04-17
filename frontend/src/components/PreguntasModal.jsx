@@ -4,6 +4,7 @@ import {
   CheckCircle, Image as ImageIcon,
 } from 'lucide-react'
 import { simuladoresApi } from '../api/simuladores'
+import { showConfirm } from '../utils/toast'
 
 const TIPOS = [
   { value: 'multiple', label: 'Opción múltiple' },
@@ -146,7 +147,7 @@ export default function PreguntasModal({ simulador, onClose }) {
   }
 
   const deletePregunta = async (pregunta) => {
-    if (!window.confirm('¿Eliminar esta pregunta?')) return
+    if (!await showConfirm('¿Eliminar esta pregunta?')) return
     if (pregunta._isNew) {
       setPreguntas((p) => p.filter((q) => q._localId !== pregunta._localId))
       return

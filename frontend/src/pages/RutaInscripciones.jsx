@@ -6,7 +6,7 @@ import EnrollmentDetailModal from '../components/EnrollmentDetailModal'
 import StudentEnrollmentModal from '../components/StudentEnrollmentModal'
 import { cursosApi } from '../api/cursos'
 import { useAuth } from '../context/AuthContext'
-import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
+import { getApiErrorMessage, showConfirm, showError, showSuccess } from '../utils/toast'
 
 export default function RutaInscripciones() {
   const navigate = useNavigate()
@@ -50,7 +50,7 @@ export default function RutaInscripciones() {
   }, [loadData])
 
   const handleDeleteMatriculaRuta = async (matricula) => {
-    const ok = window.confirm(`¿Eliminar la matricula de ${matricula.user_nombre}?`)
+    const ok = await showConfirm(`¿Eliminar la matricula de ${matricula.user_nombre}?`)
     if (!ok) return
 
     try {

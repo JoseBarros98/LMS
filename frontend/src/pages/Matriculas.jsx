@@ -4,7 +4,7 @@ import Layout from '../components/Layout'
 import { cursosApi } from '../api/cursos'
 import { getUsers } from '../api/users'
 import { useAuth } from '../context/AuthContext'
-import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
+import { getApiErrorMessage, showConfirm, showError, showSuccess } from '../utils/toast'
 
 const initialMatriculaForm = {
   tipo: 'ruta',
@@ -202,7 +202,7 @@ export default function Matriculas() {
   }
 
   const handleDeleteMatriculaRuta = async (matricula) => {
-    const ok = window.confirm(`¿Eliminar la matricula de ${matricula.user_nombre || matricula.user_email}?`)
+    const ok = await showConfirm(`¿Eliminar la matricula de ${matricula.user_nombre || matricula.user_email}?`)
     if (!ok) return
 
     try {
@@ -215,7 +215,7 @@ export default function Matriculas() {
   }
 
   const handleDeleteMatriculaCurso = async (matricula) => {
-    const ok = window.confirm(`¿Eliminar la matricula de ${matricula.user_nombre || matricula.user_email}?`)
+    const ok = await showConfirm(`¿Eliminar la matricula de ${matricula.user_nombre || matricula.user_email}?`)
     if (!ok) return
 
     try {

@@ -4,7 +4,7 @@ import UsuarioModal from '../components/UsuarioModal'
 import { Pencil, UserPlus, Search, UserX, UserCheck } from 'lucide-react'
 import Layout from '../components/Layout'
 import { usePermissions } from '../hooks/usePermissions'
-import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
+import { getApiErrorMessage, showConfirm, showError, showSuccess } from '../utils/toast'
 
 export default function Usuarios() {
     const [users, setUsers] = useState([])
@@ -53,7 +53,7 @@ export default function Usuarios() {
     }
 
     const handleDesactivar = async (usuario) => {
-        if (confirm(`¿Estás seguro de desactivar a ${usuario.name}?`)) {
+        if (await showConfirm(`¿Estás seguro de desactivar a ${usuario.name}?`)) {
             try {
                 const formData = new FormData()
                 formData.append('status', false)
@@ -67,7 +67,7 @@ export default function Usuarios() {
     }
 
     const handleReactivar = async (usuario) => {
-        if (confirm(`¿Estás seguro de reactivar a ${usuario.name}?`)) {
+        if (await showConfirm(`¿Estás seguro de reactivar a ${usuario.name}?`)) {
             try {
                 const formData = new FormData()
                 formData.append('status', true)

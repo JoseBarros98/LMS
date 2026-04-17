@@ -8,7 +8,7 @@ import { cursosApi } from '../api/cursos'
 import { simuladoresApi } from '../api/simuladores'
 import { useAuth } from '../context/AuthContext'
 import { formatCurrencyBs, formatDuration } from '../utils/formatters'
-import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
+import { getApiErrorMessage, showConfirm, showError, showSuccess } from '../utils/toast'
 
 const nivelBadge = {
   basico: 'bg-sky-100 text-sky-700',
@@ -312,7 +312,7 @@ export default function CursoDetalle() {
   }
 
   const handleEliminarComentario = async (comentarioId) => {
-    if (!window.confirm('¿Eliminar este comentario?')) return
+    if (!await showConfirm('¿Eliminar este comentario?')) return
 
     try {
       await cursosApi.deleteComentario(comentarioId)
@@ -475,7 +475,7 @@ export default function CursoDetalle() {
   }
 
   const handleEliminarLeccion = async (leccionId) => {
-    if (!window.confirm('¿Eliminar esta lección?')) return
+    if (!await showConfirm('¿Eliminar esta lección?')) return
 
     try {
       await cursosApi.deleteLeccion(leccionId)
@@ -573,7 +573,7 @@ export default function CursoDetalle() {
   }
 
   const handleEliminarMediateca = async (itemId) => {
-    if (!window.confirm('¿Eliminar este recurso?')) return
+    if (!await showConfirm('¿Eliminar este recurso?')) return
 
     try {
       await cursosApi.deleteMediatecaItem(itemId)
