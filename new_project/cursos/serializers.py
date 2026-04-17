@@ -434,6 +434,7 @@ class CursoDetalleSerializer(CursoSerializer):
     mediateca = serializers.SerializerMethodField()
     progreso_total = serializers.SerializerMethodField()
     total_completadas = serializers.SerializerMethodField()
+    simuladores = serializers.SerializerMethodField()
 
     class Meta(CursoSerializer.Meta):
         fields = CursoSerializer.Meta.fields + [
@@ -442,6 +443,7 @@ class CursoDetalleSerializer(CursoSerializer):
             'mediateca',
             'progreso_total',
             'total_completadas',
+            'simuladores',
         ]
 
     def get_secciones(self, obj):
@@ -456,6 +458,14 @@ class CursoDetalleSerializer(CursoSerializer):
         if not self.context.get('is_admin'):
             queryset = queryset.filter(publicado=True)
         return MediatecaItemSerializer(queryset, many=True, context=self.context).data
+
+    def get_simuladores(self, obj):
+        from simuladores.serializers import SimuladorListSerializer
+
+        queryset = obj.simuladores.select_related('curso', 'ruta').prefetch_related('preguntas').all()
+        if not self.context.get('is_admin'):
+            queryset = queryset.filter(publicado=True)
+        return SimuladorListSerializer(queryset, many=True, context=self.context).data
 
     def get_progreso_total(self, obj):
         lessons = []

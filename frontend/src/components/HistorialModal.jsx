@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { X, BarChart2, List } from 'lucide-react'
+import { X, BarChart2 } from 'lucide-react'
 
 function formatDate(d) {
   if (!d) return '–'
@@ -17,9 +17,6 @@ function formatDuration(seconds) {
 
 export default function HistorialModal({ simulador, intentos, onClose }) {
   const navigate = useNavigate()
-
-  const completados = intentos.filter((i) => i.completado)
-  const pendientes = intentos.filter((i) => !i.completado)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">

@@ -263,11 +263,17 @@ class RespuestaIntentoSerializer(serializers.ModelSerializer):
 class IntentoSimuladorSerializer(serializers.ModelSerializer):
     respuestas = RespuestaIntentoSerializer(many=True, read_only=True)
     simulador_titulo = serializers.CharField(source='simulador.titulo', read_only=True)
+    simulador_curso_nombre = serializers.SerializerMethodField()
+    simulador_ruta_nombre = serializers.SerializerMethodField()
+    user_email = serializers.CharField(source='user.email', read_only=True)
+    user_nombre = serializers.SerializerMethodField()
 
     class Meta:
         model = IntentoSimulador
         fields = [
             'id', 'simulador', 'simulador_titulo',
+            'simulador_curso_nombre', 'simulador_ruta_nombre',
+            'user_email', 'user_nombre',
             'iniciado_en', 'finalizado_en',
             'tiempo_transcurrido_segundos',
             'puntaje_obtenido',
@@ -275,6 +281,23 @@ class IntentoSimuladorSerializer(serializers.ModelSerializer):
             'completado',
             'respuestas',
         ]
+
+    def get_simulador_curso_nombre(self, obj):
+        return obj.simulador.curso.titulo if obj.simulador.curso else None
+
+    def get_simulador_ruta_nombre(self, obj):
+        simulador = obj.simulador
+        if simulador.ruta:
+            return simulador.ruta.titulo
+        if simulador.curso and simulador.curso.ruta:
+            return simulador.curso.ruta.titulo
+        return None
+
+    def get_user_nombre(self, obj):
+        user = obj.user
+        return ' '.join(
+            part for part in [user.name, user.paternal_surname, user.maternal_surname] if part
+        ).strip() or user.email
 
 
 class IntentoListSerializer(serializers.ModelSerializer):

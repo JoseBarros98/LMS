@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Clock3, MessageCircle, Send, Trash2, BookOpen, Package, Settings, Plus, X, Folder, FolderOpen, FileText, Search, ChevronRight, Link2, Video, Headphones, Pencil, Upload, UserPlus } from 'lucide-react'
+import { ArrowLeft, Clock3, MessageCircle, Send, Trash2, BookOpen, Package, Settings, Plus, X, Folder, FolderOpen, FileText, Search, ChevronRight, Link2, Video, Headphones, Pencil, Upload, UserPlus, Monitor, Play } from 'lucide-react'
 import Layout from '../components/Layout'
 import StudentEnrollmentModal from '../components/StudentEnrollmentModal'
+import InstruccionesModal from '../components/InstruccionesModal'
 import { cursosApi } from '../api/cursos'
+import { simuladoresApi } from '../api/simuladores'
 import { useAuth } from '../context/AuthContext'
 import { formatCurrencyBs, formatDuration } from '../utils/formatters'
 import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
@@ -18,6 +20,11 @@ const estadoBadge = {
   disponible: 'bg-emerald-100 text-emerald-700',
   proximo: 'bg-amber-100 text-amber-700',
   bloqueado: 'bg-gray-200 text-gray-700',
+}
+
+const simuladorEstadoBadge = {
+  disponible: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  noDisponible: 'bg-amber-100 text-amber-700 border-amber-200',
 }
 
 const initialLeccionForm = {
@@ -154,6 +161,30 @@ const getYoutubeEmbedUrl = (url) => {
   return null
 }
 
+const formatSimuladorDateRange = (apertura, cierre) => {
+  const formatDate = (value) => {
+    if (!value) return null
+    return new Date(value).toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    })
+  }
+
+  const aperturaLabel = formatDate(apertura)
+  const cierreLabel = formatDate(cierre)
+
+  if (!aperturaLabel && !cierreLabel) {
+    return 'Se habilita al completar el curso.'
+  }
+
+  if (aperturaLabel && cierreLabel) {
+    return `${aperturaLabel} - ${cierreLabel}`
+  }
+
+  return aperturaLabel || cierreLabel
+}
+
 export default function CursoDetalle() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -192,6 +223,8 @@ export default function CursoDetalle() {
   const [studentModalOpen, setStudentModalOpen] = useState(false)
   const [studentEnrollmentError, setStudentEnrollmentError] = useState('')
   const [submittingStudent, setSubmittingStudent] = useState(false)
+  const [simuladorModal, setSimuladorModal] = useState(null)
+  const [iniciandoSimuladorId, setIniciandoSimuladorId] = useState(null)
 
   const isAdmin = user?.role?.name?.toLowerCase() === 'administrador'
 
@@ -556,8 +589,25 @@ export default function CursoDetalle() {
     return Math.round((leccionesCompletadas / leccionesPublicadas.length) * 100)
   }, [leccionesCompletadas, leccionesPublicadas.length])
 
+  const simuladoresCurso = useMemo(() => {
+    return Array.isArray(curso?.simuladores) ? curso.simuladores : []
+  }, [curso])
+
   const currentVideoUrl = selectedLeccion?.video_url || curso?.video_intro_url || ''
   const currentYoutubeEmbedUrl = useMemo(() => getYoutubeEmbedUrl(currentVideoUrl), [currentVideoUrl])
+
+  const handleIniciarSimulador = async (simulador) => {
+    try {
+      setIniciandoSimuladorId(simulador.id)
+      const intento = await simuladoresApi.iniciarIntento(simulador.id)
+      setSimuladorModal(null)
+      navigate(`/simuladores/${simulador.id}/resolver/${intento.id}`)
+    } catch (error) {
+      showError(getApiErrorMessage(error, 'No se pudo iniciar el simulador.'))
+    } finally {
+      setIniciandoSimuladorId(null)
+    }
+  }
 
   const renderComentario = (com, depth = 0) => {
     const replies = Array.isArray(com.respuestas) ? com.respuestas : []
@@ -894,6 +944,63 @@ export default function CursoDetalle() {
                         )}
                       </div>
                     ))}
+                  </div>
+                )}
+
+                {simuladoresCurso.length > 0 && (
+                  <div className={`space-y-3 ${secciones.length > 0 ? 'mt-5 pt-5 border-t border-gray-200' : 'mt-4'}`}>
+                    <div className="flex items-center gap-2">
+                      <Monitor size={18} className="text-blue-600" />
+                      <h4 className="text-sm font-semibold text-gray-800">Simuladores del curso</h4>
+                    </div>
+
+                    {simuladoresCurso.map((simulador) => {
+                      const disponible = Boolean(simulador.esta_disponible)
+                      const badgeClassName = disponible
+                        ? simuladorEstadoBadge.disponible
+                        : simuladorEstadoBadge.noDisponible
+
+                      return (
+                        <div
+                          key={simulador.id}
+                          className="rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-indigo-50 p-4 space-y-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-gray-900">{simulador.titulo}</p>
+                              {simulador.descripcion && (
+                                <p className="mt-1 text-xs text-gray-600 line-clamp-2">{simulador.descripcion}</p>
+                              )}
+                            </div>
+                            <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${badgeClassName}`}>
+                              {disponible ? 'Disponible' : 'Pendiente'}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-2 text-xs text-gray-600">
+                            <p>
+                              <span className="font-medium text-gray-700">Preguntas:</span> {simulador.total_preguntas}
+                            </p>
+                            <p>
+                              <span className="font-medium text-gray-700">Tiempo:</span> {simulador.tiempo_limite_minutos ? `${simulador.tiempo_limite_minutos} min` : 'Sin límite'}
+                            </p>
+                            <p>
+                              <span className="font-medium text-gray-700">Vigencia:</span> {formatSimuladorDateRange(simulador.fecha_apertura_efectiva, simulador.fecha_cierre_efectiva)}
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setSimuladorModal(simulador)}
+                            disabled={!disponible}
+                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+                          >
+                            <Play size={16} />
+                            {disponible ? 'Resolver simulador' : 'Aún no disponible'}
+                          </button>
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </div>
@@ -1379,6 +1486,14 @@ export default function CursoDetalle() {
           </div>
         )
       })()}
+
+      {simuladorModal && (
+        <InstruccionesModal
+          simulador={simuladorModal}
+          onClose={() => setSimuladorModal(null)}
+          onComenzar={() => handleIniciarSimulador(simuladorModal)}
+        />
+      )}
 
       {/* Modal: Nuevo / Editar Recurso */}
       {mediatecaModalOpen && (

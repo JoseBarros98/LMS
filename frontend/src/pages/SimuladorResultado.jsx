@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, CheckCircle, XCircle, MinusCircle, Clock, Eye, X, Image as ImageIcon } from 'lucide-react'
+import { ArrowLeft, CheckCircle, XCircle, MinusCircle, Clock, Eye, X, FileText, Download, LoaderCircle } from 'lucide-react'
 import Layout from '../components/Layout'
 import { simuladoresApi } from '../api/simuladores'
+import { generateSimuladorResolutionPdf } from '../utils/simuladorPdf'
+import { getApiErrorMessage, showError } from '../utils/toast'
 
 const TABS = [
   { key: 'todas', label: 'Todas' },
@@ -26,10 +28,20 @@ export default function SimuladorResultado() {
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('todas')
   const [detalle, setDetalle] = useState(null) // respuesta para el modal de detalle
+  const [generatingPdf, setGeneratingPdf] = useState(false)
+  const [pdfPreview, setPdfPreview] = useState(null)
 
   useEffect(() => {
     load()
   }, [simuladorId, intentoId])
+
+  useEffect(() => {
+    return () => {
+      if (pdfPreview?.url) {
+        URL.revokeObjectURL(pdfPreview.url)
+      }
+    }
+  }, [pdfPreview])
 
   const load = async () => {
     try {
@@ -40,6 +52,31 @@ export default function SimuladorResultado() {
       navigate('/simuladores')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const closePdfPreview = () => {
+    if (pdfPreview?.url) {
+      URL.revokeObjectURL(pdfPreview.url)
+    }
+    setPdfPreview(null)
+  }
+
+  const handleGenerarPdf = async () => {
+    if (!intento) return
+
+    try {
+      setGeneratingPdf(true)
+      const { blob, fileName } = await generateSimuladorResolutionPdf(intento)
+      const url = URL.createObjectURL(blob)
+      if (pdfPreview?.url) {
+        URL.revokeObjectURL(pdfPreview.url)
+      }
+      setPdfPreview({ url, fileName })
+    } catch (error) {
+      showError(getApiErrorMessage(error, 'No se pudo generar el PDF de resolución.'))
+    } finally {
+      setGeneratingPdf(false)
     }
   }
 
@@ -85,8 +122,21 @@ export default function SimuladorResultado() {
 
         {/* Summary card */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-          <h1 className="text-xl font-bold text-gray-800 mb-1">{intento.simulador_titulo}</h1>
-          <p className="text-sm text-gray-500 mb-5">Resultados del intento</p>
+          <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+            <div>
+              <h1 className="text-xl font-bold text-gray-800 mb-1">{intento.simulador_titulo}</h1>
+              <p className="text-sm text-gray-500">Resultados del intento</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleGenerarPdf}
+              disabled={generatingPdf}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {generatingPdf ? <LoaderCircle size={16} className="animate-spin" /> : <FileText size={16} />}
+              Ver PDF de Resolución
+            </button>
+          </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
             <StatCard
@@ -187,6 +237,14 @@ export default function SimuladorResultado() {
 
       {detalle && (
         <PreguntaDetalleModal resp={detalle} onClose={() => setDetalle(null)} />
+      )}
+
+      {pdfPreview && (
+        <PdfPreviewModal
+          fileUrl={pdfPreview.url}
+          fileName={pdfPreview.fileName}
+          onClose={closePdfPreview}
+        />
       )}
     </Layout>
   )
@@ -369,6 +427,42 @@ function PreguntaDetalleModal({ resp, onClose }) {
             </div>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+function PdfPreviewModal({ fileUrl, fileName, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden">
+        <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold text-gray-800 truncate">Vista previa del PDF de resolución</h3>
+            <p className="text-xs text-gray-500 truncate">{fileName}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <a
+              href={fileUrl}
+              download={fileName}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <Download size={15} />
+              Descargar
+            </a>
+            <button
+              onClick={onClose}
+              className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+        <iframe
+          src={fileUrl}
+          title="PDF de resolución"
+          className="flex-1 w-full border-0"
+        />
       </div>
     </div>
   )
