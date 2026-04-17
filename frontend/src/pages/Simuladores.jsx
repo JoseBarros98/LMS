@@ -6,6 +6,7 @@ import {
 import { useLocation, useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { useAuth } from '../context/AuthContext'
+import { usePermissions } from '../hooks/usePermissions'
 import { simuladoresApi } from '../api/simuladores'
 import SimuladorModal from '../components/SimuladorModal'
 import PreguntasModal from '../components/PreguntasModal'
@@ -55,6 +56,7 @@ export default function Simuladores() {
   const navigate = useNavigate()
   const location = useLocation()
   const isAdmin = user?.role?.name?.toLowerCase() === 'administrador'
+  const { canResolveSimulators } = usePermissions()
 
   const [simuladores, setSimuladores] = useState([])
   const [loading, setLoading] = useState(true)
@@ -213,6 +215,7 @@ export default function Simuladores() {
                   onGestionarDisponibilidadUsuario={() => setModalDisponibilidadUsuario({ simulador: sim, initialUserId: '' })}
                   onVerDisponibilidades={() => setModalDisponibilidadesList(sim)}
                   onLoadIntentos={() => loadIntentos(sim.id)}
+                  canResolveSimulators={canResolveSimulators}
                 />
               )
             })}
@@ -281,6 +284,7 @@ function SimuladorCard({
   sim, index, isAdmin,
   intentosCompletados,
   onResolver, onVerHistorial, onVerRanking, onEdit, onDelete, onGestionarPreguntas, onGestionarDisponibilidadUsuario, onVerDisponibilidades, onLoadIntentos,
+  canResolveSimulators,
 }) {
   const [loaded, setLoaded] = useState(false)
   const [coverError, setCoverError] = useState(false)
@@ -392,7 +396,7 @@ function SimuladorCard({
           )}
           <button
             onClick={onResolver}
-            disabled={!disponible}
+             disabled={!disponible || !canResolveSimulators()}
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition text-sm"
           >
             <Activity size={15} />

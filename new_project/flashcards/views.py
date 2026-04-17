@@ -18,6 +18,14 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
         if request.method in permissions.SAFE_METHODS:
             return True
 
+        if (
+            request.user
+            and getattr(request.user, 'role', None)
+            and request.user.role
+            and request.user.role.name.lower() == 'administrador'
+        ):
+            return True
+
         owner = getattr(obj, 'owner', None)
         if owner is not None:
             return owner == request.user
@@ -34,6 +42,9 @@ class FlashcardGroupViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        is_admin = bool(
+            user and getattr(user, 'role', None) and user.role and user.role.name.lower() == 'administrador'
+        )
         queryset = FlashcardGroup.objects.select_related('owner').annotate(
             cards_count=Count('cards', distinct=True),
             usuarios_unicos=Count('study_events__user', distinct=True),
@@ -41,6 +52,9 @@ class FlashcardGroupViewSet(viewsets.ModelViewSet):
             respuestas_correctas=Count('study_events', filter=Q(study_events__fue_correcta=True)),
             tiempo_medio_seg_agg=Avg('study_events__duracion_segundos'),
         )
+
+        if is_admin:
+            return queryset
 
         if self.action in ['update', 'partial_update', 'destroy']:
             return queryset.filter(owner=user)
@@ -95,7 +109,16 @@ class FlashcardViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        is_admin = bool(
+            user and getattr(user, 'role', None) and user.role and user.role.name.lower() == 'administrador'
+        )
         queryset = Flashcard.objects.select_related('grupo', 'grupo__owner')
+
+        if is_admin:
+            grupo_id = self.request.query_params.get('grupo_id')
+            if grupo_id:
+                queryset = queryset.filter(grupo_id=grupo_id)
+            return queryset
 
         if self.action in ['update', 'partial_update', 'destroy', 'create']:
             queryset = queryset.filter(grupo__owner=user)

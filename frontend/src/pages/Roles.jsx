@@ -161,12 +161,12 @@ export default function Roles() {
                     {/* Permisos */}
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-1">
-                        {Object.keys(role.permissions || {}).map((resource) => (
+                        {Object.entries(role.permissions || {}).map(([resource, actions]) => (
                           <span
                             key={resource}
                             className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full"
                           >
-                            {resource}
+                            {resource} ({Array.isArray(actions) ? actions.length : 0})
                           </span>
                         ))}
                       </div>

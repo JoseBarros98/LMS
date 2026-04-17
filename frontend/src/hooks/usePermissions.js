@@ -5,6 +5,17 @@ export function usePermissions() {
   const [userPermissions, setUserPermissions] = useState({})
   const [loading, setLoading] = useState(true)
 
+  const isAdmin = () => {
+    const token = localStorage.getItem('access_token')
+    if (!token) return false
+    try {
+      const decoded = jwtDecode(token)
+      return decoded.role?.name?.toLowerCase() === 'administrador'
+    } catch {
+      return false
+    }
+  }
+
   useEffect(() => {
     const loadPermissions = () => {
       const token = localStorage.getItem('access_token')
@@ -33,6 +44,8 @@ export function usePermissions() {
 
   const hasPermission = (resource, action) => {
     if (loading) return false
+
+    if (isAdmin()) return true
     
     const resourcePermissions = userPermissions[resource]
     if (!resourcePermissions) return false
@@ -44,6 +57,23 @@ export function usePermissions() {
   const canCreate = (resource) => hasPermission(resource, 'create')
   const canUpdate = (resource) => hasPermission(resource, 'update')
   const canDelete = (resource) => hasPermission(resource, 'delete')
+  
+  // Permisos de ownership (propios)
+  const canUpdateOwn = (resource) => hasPermission(resource, 'update_own')
+  const canDeleteOwn = (resource) => hasPermission(resource, 'delete_own')
+  const canReadOwn = (resource) => hasPermission(resource, 'read_own')
+  
+  // Acceso a páginas
+  const canAccessPage = (pageName) => {
+    if (loading) return false
+    if (isAdmin()) return true
+    const pages = userPermissions['pages']
+    if (!Array.isArray(pages)) return false
+    return pages.includes(pageName)
+  }
+
+  // Acciones específicas
+  const canResolveSimulators = () => isAdmin() || hasPermission('simulators', 'resolver')
 
   return {
     userPermissions,
@@ -52,6 +82,12 @@ export function usePermissions() {
     canRead,
     canCreate,
     canUpdate,
-    canDelete
+    canDelete,
+    canUpdateOwn,
+    canDeleteOwn,
+    canReadOwn,
+    canAccessPage,
+    canResolveSimulators,
+    isAdmin,
   }
 }

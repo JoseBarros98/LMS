@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import Layout from '../components/Layout'
 import { ticketsApi } from '../api/tickets'
 import TicketModal from '../components/TicketModal'
+import { usePermissions } from '../hooks/usePermissions'
 import { 
   Plus, 
   MessageCircle, 
@@ -21,6 +22,7 @@ export default function Tickets() {
   const { user } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
+  const { canCreate, canReadOwn, canUpdateOwn } = usePermissions()
   const [tickets, setTickets] = useState([])
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
@@ -31,6 +33,9 @@ export default function Tickets() {
   const [filterCategory, setFilterCategory] = useState('all')
 
   const isAdmin = user?.role?.name?.toLowerCase() === 'administrador'
+  const canCreateTicket = isAdmin || canCreate('tickets')
+  const canEditTicket = isAdmin || canUpdateOwn('tickets')
+  const canReadTickets = isAdmin || canReadOwn('tickets')
 
   useEffect(() => {
     loadTickets()
@@ -149,11 +154,13 @@ export default function Tickets() {
   }
 
   const handleCreateTicket = () => {
+    if (!canCreateTicket) return
     setTicketEdit(null)
     setModalOpen(true)
   }
 
   const handleViewTicket = (ticket) => {
+    if (!canEditTicket) return
     setTicketEdit(ticket)
     setModalOpen(true)
   }
@@ -193,17 +200,25 @@ export default function Tickets() {
             </p>
           </div>
           
-          <button
-            onClick={handleCreateTicket}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2 text-sm font-medium"
-          >
-            <Plus size={16} />
-            Nuevo Ticket
-          </button>
+          {canCreateTicket && (
+            <button
+              onClick={handleCreateTicket}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition flex items-center gap-2 text-sm font-medium"
+            >
+              <Plus size={16} />
+              Nuevo Ticket
+            </button>
+          )}
         </div>
 
+        {!canReadTickets && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-amber-800 text-sm">
+            Tu rol no tiene permisos para ver tickets.
+          </div>
+        )}
+
         {/* Filtros */}
-        <div className="bg-white rounded-2xl border border-gray-200 p-6">
+        {canReadTickets && <div className="bg-white rounded-2xl border border-gray-200 p-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Búsqueda */}
             <div className="md:col-span-1">
@@ -269,10 +284,10 @@ export default function Tickets() {
               </div>
             </div>
           </div>
-        </div>
+        </div>}
 
         {/* Lista de Tickets */}
-        {loading ? (
+        {canReadTickets && (loading ? (
           <div className="flex justify-center items-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
           </div>
@@ -292,7 +307,7 @@ export default function Tickets() {
               <div
                 key={ticket.id}
                 onClick={() => handleViewTicket(ticket)}
-                className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg transition cursor-pointer"
+                className={`bg-white rounded-2xl border border-gray-200 p-6 transition ${canEditTicket ? 'hover:shadow-lg cursor-pointer' : 'cursor-default'}`}
               >
                 {/* Header del ticket */}
                 <div className="flex items-start justify-between mb-4">
@@ -353,7 +368,7 @@ export default function Tickets() {
               </div>
             ))}
           </div>
-        )}
+        ))}
 
         {/* Modal para crear/editar ticket */}
         {modalOpen && (

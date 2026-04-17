@@ -4,6 +4,7 @@ from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import authenticate
 from .models import User, Role
+from .permission_catalog import PERMISSION_CATALOG, get_valid_permission_actions
 
 class RoleSerializer(serializers.ModelSerializer):
     users_count = serializers.SerializerMethodField()
@@ -15,6 +16,48 @@ class RoleSerializer(serializers.ModelSerializer):
     
     def get_users_count(self, obj):
         return obj.users.count()
+
+    def validate_permissions(self, value):
+        if value in (None, ''):
+            return {}
+
+        if not isinstance(value, dict):
+            raise serializers.ValidationError('El campo permissions debe ser un objeto JSON.')
+
+        unknown_resources = [resource for resource in value.keys() if resource not in PERMISSION_CATALOG]
+        if unknown_resources:
+            raise serializers.ValidationError(
+                f'Recursos no permitidos: {", ".join(sorted(unknown_resources))}.'
+            )
+
+        for resource, actions in value.items():
+            if not isinstance(actions, list):
+                raise serializers.ValidationError(
+                    f'Las acciones de "{resource}" deben enviarse como lista.'
+                )
+
+            normalized_actions = []
+            seen = set()
+            valid_actions = get_valid_permission_actions(resource)
+
+            for action in actions:
+                if not isinstance(action, str):
+                    raise serializers.ValidationError(
+                        f'Cada accion en "{resource}" debe ser texto.'
+                    )
+
+                if action not in valid_actions:
+                    raise serializers.ValidationError(
+                        f'Accion no valida para "{resource}": "{action}".'
+                    )
+
+                if action not in seen:
+                    seen.add(action)
+                    normalized_actions.append(action)
+
+            value[resource] = normalized_actions
+
+        return value
 
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)

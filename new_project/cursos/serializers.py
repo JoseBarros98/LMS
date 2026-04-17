@@ -210,6 +210,12 @@ class CursoSerializer(serializers.ModelSerializer):
         curso.save()
         return curso
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if not self.context.get('is_admin'):
+            data.pop('precio', None)
+        return data
+
 
 class ComentarioCursoSerializer(serializers.ModelSerializer):
     user_nombre = serializers.SerializerMethodField()

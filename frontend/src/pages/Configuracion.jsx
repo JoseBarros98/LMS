@@ -279,7 +279,7 @@ export default function Configuracion() {
     navigate(`/tickets?ticketId=${notification.ticket_id}`)
   }
 
-  // â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”â€”
+  
 
   const handleSubmitPassword = async (e) => {
     e.preventDefault()
@@ -362,32 +362,6 @@ export default function Configuracion() {
                 <div className="flex items-center gap-2">
                   <User size={16} />
                   Mis Matrículas
-                </div>
-              </button>
-              <button
-                onClick={() => setActiveTab('authentication_2fa')}
-                className={`px-6 py-3 text-sm font-medium border-b-2 transition ${
-                  activeTab === 'authentication_2fa'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Lock size={16} />
-                  Autenticación 2FA
-                </div>
-              </button>
-              <button
-                onClick={() => setActiveTab('dispositivos')}
-                className={`px-6 py-3 text-sm font-medium border-b-2 transition ${
-                  activeTab === 'dispositivos'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Computer size={16} />
-                  Dispositivos
                 </div>
               </button>
               <button

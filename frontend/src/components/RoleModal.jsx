@@ -1,12 +1,6 @@
 import { useState, useEffect } from 'react'
-import { X, Save, ShieldCheck } from 'lucide-react'
-
-const DEFAULT_PERMISSIONS = {
-  users: ['read', 'create', 'update', 'delete'],
-  roles: ['read', 'create', 'update', 'delete'],
-  courses: ['read', 'create', 'update', 'delete'],
-  reports: ['read', 'create', 'update', 'delete']
-}
+import { X, Save } from 'lucide-react'
+import { PERMISSIONS_CATALOG, RESOURCE_ORDER } from '../constants/permissionsCatalog'
 
 export default function RoleModal({ role, onClose, onSave }) {
   const [formData, setFormData] = useState({
@@ -32,12 +26,12 @@ export default function RoleModal({ role, onClose, onSave }) {
     }
   }, [role])
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
 
     try {
-      onSave(formData)
+      await onSave(formData)
     } finally {
       setLoading(false)
     }
@@ -54,6 +48,28 @@ export default function RoleModal({ role, onClose, onSave }) {
       }
     }))
   }
+
+  const handleToggleAll = (resource) => {
+    const allActions = (PERMISSIONS_CATALOG[resource]?.actions || []).map(({ key }) => key)
+
+    setFormData((prev) => {
+      const currentActions = prev.permissions[resource] || []
+      const hasAll = allActions.length > 0 && allActions.every((action) => currentActions.includes(action))
+
+      return {
+        ...prev,
+        permissions: {
+          ...prev.permissions,
+          [resource]: hasAll ? [] : allActions,
+        },
+      }
+    })
+  }
+
+  const selectedPermissionsCount = Object.values(formData.permissions || {}).reduce((total, actions) => {
+    if (!Array.isArray(actions)) return total
+    return total + actions.length
+  }, 0)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
@@ -104,33 +120,49 @@ export default function RoleModal({ role, onClose, onSave }) {
             <label className="block text-sm font-medium text-gray-700 mb-3">
               Permisos
             </label>
+            <p className="text-xs text-gray-500 mb-3">
+              Permisos seleccionados: <span className="font-semibold text-gray-700">{selectedPermissionsCount}</span>
+            </p>
             <div className="space-y-3">
-              {Object.entries(DEFAULT_PERMISSIONS).map(([resource, actions]) => (
+              {RESOURCE_ORDER.map((resource) => {
+                const config = PERMISSIONS_CATALOG[resource]
+                if (!config) return null
+
+                const currentActions = formData.permissions[resource] || []
+                const allActionKeys = config.actions.map(({ key }) => key)
+                const hasAll = allActionKeys.length > 0 && allActionKeys.every((action) => currentActions.includes(action))
+
+                return (
                 <div key={resource} className="border border-gray-200 rounded-lg p-3">
-                  <h4 className="font-medium text-gray-900 mb-2 text-sm">
-                    {resource === 'users' ? 'Usuarios' : 
-                     resource === 'roles' ? 'Roles' : 
-                     resource === 'courses' ? 'Cursos' : 'Reportes'}
-                  </h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                    {actions.map(action => (
-                      <label key={action} className="flex items-center gap-2 cursor-pointer text-sm">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div>
+                      <h4 className="font-medium text-gray-900 text-sm">{config.label}</h4>
+                      {config.help && <p className="text-xs text-gray-500 mt-0.5">{config.help}</p>}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleAll(resource)}
+                      className="text-xs px-2 py-1 rounded-md border border-gray-200 hover:bg-gray-50 text-gray-600"
+                    >
+                      {hasAll ? 'Limpiar' : 'Seleccionar todo'}
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                    {config.actions.map(({ key, label }) => (
+                      <label key={key} className="flex items-center gap-2 cursor-pointer text-sm">
                         <input
                           type="checkbox"
-                          checked={formData.permissions[resource]?.includes(action) || false}
-                          onChange={() => handlePermissionChange(resource, action)}
+                          checked={currentActions.includes(key)}
+                          onChange={() => handlePermissionChange(resource, key)}
                           className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                         />
-                        <span className="text-gray-700">
-                          {action === 'read' ? 'Leer' :
-                           action === 'create' ? 'Crear' :
-                           action === 'update' ? 'Actualizar' : 'Eliminar'}
-                        </span>
+                        <span className="text-gray-700">{label}</span>
                       </label>
                     ))}
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           </div>
 

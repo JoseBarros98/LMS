@@ -20,6 +20,7 @@ import {
 import Layout from '../components/Layout'
 import { flashcardsApi } from '../api/flashcards'
 import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
+import { usePermissions } from '../hooks/usePermissions'
 
 const themeBarClasses = [
   'from-emerald-400 to-teal-500',
@@ -593,6 +594,7 @@ function ManageCardsModal({ group, onClose, onUpdated }) {
 export default function Flashcards() {
   const navigate = useNavigate()
   const { groupId } = useParams()
+  const { canCreate, canUpdateOwn, canDeleteOwn } = usePermissions()
 
   const [communityGroups, setCommunityGroups] = useState([])
   const [myGroups, setMyGroups] = useState([])
@@ -611,6 +613,9 @@ export default function Flashcards() {
 
   const [studyGroup, setStudyGroup] = useState(null)
   const [loadingStudy, setLoadingStudy] = useState(false)
+
+  const canCreateGroup = canCreate('flashcards')
+  const canManageOwnFlashcards = canUpdateOwn('flashcards') || canDeleteOwn('flashcards') || canCreateGroup
 
   const listCount = useMemo(() => communityGroups.length + myGroups.length, [communityGroups.length, myGroups.length])
 
@@ -797,13 +802,15 @@ export default function Flashcards() {
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowCreateModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800"
-              >
-                <Plus size={16} /> Crear Nuevo Grupo
-              </button>
+              {canCreateGroup && (
+                <button
+                  type="button"
+                  onClick={() => setShowCreateModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800"
+                >
+                  <Plus size={16} /> Crear Nuevo Grupo
+                </button>
+              )}
             </div>
           </section>
 
@@ -888,13 +895,15 @@ export default function Flashcards() {
                   </div>
                   <h3 className="text-xl font-semibold text-slate-800 mt-4">Tu coleccion esta vacia</h3>
                   <p className="text-slate-500 mt-1 max-w-lg">Crea tu primer grupo de flashcards para empezar a estudiar.</p>
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateModal(true)}
-                    className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800"
-                  >
-                    <Plus size={16} /> Crear Grupo
-                  </button>
+                  {canCreateGroup && (
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateModal(true)}
+                      className="mt-5 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white font-medium hover:bg-slate-800"
+                    >
+                      <Plus size={16} /> Crear Grupo
+                    </button>
+                  )}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
@@ -907,7 +916,7 @@ export default function Flashcards() {
                       onCreateCard={(targetGroup) => setCreateCardTarget(targetGroup)}
                       onManageCards={(targetGroup) => setManageCardsTarget(targetGroup)}
                       onDeleteGroup={(targetGroup) => handleDeleteGroup(targetGroup)}
-                      owned
+                      owned={canManageOwnFlashcards}
                     />
                   ))}
                 </div>

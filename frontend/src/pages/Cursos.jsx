@@ -289,9 +289,11 @@ export default function Cursos() {
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-gray-100 text-gray-700">
                           <Clock3 size={12} /> {formatDuration(curso.duracion_total_min)}
                         </span>
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-100 text-emerald-700 font-semibold">
-                          {formatCurrencyBs(curso.precio)}
-                        </span>
+                        {isAdmin && (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-100 text-emerald-700 font-semibold">
+                            {formatCurrencyBs(curso.precio)}
+                          </span>
+                        )}
                         {curso.tiene_mediateca && (
                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded bg-blue-100 text-blue-700">
                             Mediateca

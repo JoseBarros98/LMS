@@ -35,7 +35,7 @@ createRoot(document.getElementById('root')).render(
           <Route path="/login" element={<Login />} />
 
           <Route path="/dashboard" element={
-            <PrivateRoute>
+            <PrivateRoute requiredPage="dashboard">
               <App />
             </PrivateRoute>
           } />
@@ -43,13 +43,13 @@ createRoot(document.getElementById('root')).render(
           <Route path="*" element={<Navigate to="/login" replace />}/>
 
           <Route path="/users" element={
-            <PrivateRoute>
+            <PrivateRoute requiredPage="users">
               <Usuarios />
             </PrivateRoute>
           } />
 
           <Route path="/roles" element={
-            <PrivateRoute>
+            <PrivateRoute requiredPage="roles">
               <Roles />
             </PrivateRoute>
           } />
@@ -61,103 +61,103 @@ createRoot(document.getElementById('root')).render(
           } />
 
           <Route path="/tickets" element={
-            <PrivateRoute>
+            <PrivateRoute requiredPage="tickets">
               <Tickets />
             </PrivateRoute>
           } />
 
           <Route path="/categorias" element={
-            <PrivateRoute>
+            <PrivateRoute requiredPage="categorias">
               <Categorias />
             </PrivateRoute>
           } />
 
           <Route path="/courses" element={
-            <PrivateRoute>
+            <PrivateRoute requiredPage="cursos">
               <Cursos />
             </PrivateRoute>
           } />
 
           <Route path="/matriculas" element={
-            <PrivateRoute>
+            <PrivateRoute requiredPage="matriculas">
               <Matriculas />
             </PrivateRoute>
           } />
 
           <Route path="/rutas" element={
-            <PrivateRoute>
+            <PrivateRoute requiredPage="rutas">
               <Rutas />
             </PrivateRoute>
           } />
 
           <Route path="/rutas/:id/cursos" element={
-            <PrivateRoute>
+            <PrivateRoute requiredPage="rutas">
               <RutaCursos />
             </PrivateRoute>
           } />
 
           <Route path="/rutas/:id/inscripciones" element={
-            <PrivateRoute>
+            <PrivateRoute requiredPage="matriculas">
               <RutaInscripciones />
             </PrivateRoute>
           } />
 
           <Route path="/courses/:id/inscripciones" element={
-            <PrivateRoute>
+            <PrivateRoute requiredPage="matriculas">
               <CursoInscripciones />
             </PrivateRoute>
           } />
 
           <Route path="/courses/:id" element={
-            <PrivateRoute>
+            <PrivateRoute requiredPage="cursos">
               <CursoDetalle />
             </PrivateRoute>
           } />
 
           <Route path="/recursos" element={
-            <PrivateRoute>
+            <PrivateRoute requiredPage="recursos">
               <Recursos />
             </PrivateRoute>
           } />
 
           <Route path="/simuladores" element={
-            <PrivateRoute>
+            <PrivateRoute requiredPage="simuladores">
               <Simuladores />
             </PrivateRoute>
           } />
 
           <Route path="/simuladores/:simuladorId/resolver/:intentoId" element={
-            <PrivateRoute>
+            <PrivateRoute requiredPage="simuladores">
               <SimuladorResolver />
             </PrivateRoute>
           } />
 
           <Route path="/simuladores/:simuladorId/resultado/:intentoId" element={
-            <PrivateRoute>
+            <PrivateRoute requiredPage="simuladores">
               <SimuladorResultado />
             </PrivateRoute>
           } />
 
           <Route path="/simuladores/:simuladorId/ranking" element={
-            <PrivateRoute>
+            <PrivateRoute requiredPage="simuladores">
               <SimuladorRanking />
             </PrivateRoute>
           } />
 
           <Route path="/calendario" element={
-            <PrivateRoute>
+            <PrivateRoute requiredPage="calendario">
               <Calendario />
             </PrivateRoute>
           } />
 
           <Route path="/flashcards" element={
-            <PrivateRoute>
+            <PrivateRoute requiredPage="flashcards">
               <Flashcards />
             </PrivateRoute>
           } />
 
           <Route path="/flashcards/:groupId" element={
-            <PrivateRoute>
+            <PrivateRoute requiredPage="flashcards">
               <Flashcards />
             </PrivateRoute>
           } />
