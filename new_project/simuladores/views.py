@@ -1,10 +1,12 @@
 from django.db import transaction
 from django.utils import timezone
-from rest_framework import permissions, status, viewsets
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from core.access import has_role_permission, is_admin_user
+from core.api_permissions import RoleActionPermission
 from core.models import User
 from cursos.models import Curso, MatriculaCurso, MatriculaRuta
 
@@ -29,16 +31,6 @@ from .serializers import (
     SimuladorListSerializer,
     SimuladorWriteSerializer,
 )
-
-
-def is_admin(user):
-    return bool(
-        user
-        and getattr(user, 'role', None)
-        and user.role
-        and user.role.name.lower() == 'administrador'
-    )
-
 
 def is_user_enrolled_for_simulator(simulador, user_id):
     if simulador.ruta_id:
@@ -96,21 +88,34 @@ def is_better_attempt(candidate, current_best):
     current_finished = current_best.finalizado_en or timezone.now()
     return candidate_finished < current_finished
 
-
-class IsAdminOrReadOnly(permissions.BasePermission):
-    def has_permission(self, request, view):
-        if request.method in permissions.SAFE_METHODS:
-            return request.user and request.user.is_authenticated
-        return is_admin(request.user)
-
-
 class SimuladorViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleActionPermission]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
+    permission_resource = 'simulators'
+    permission_action_map = {
+        'list': 'read',
+        'retrieve': 'read',
+        'create': 'create',
+        'update': 'update',
+        'partial_update': 'update',
+        'destroy': 'delete',
+        'preguntas': 'read',
+        'crear_pregunta': 'manage_questions',
+        'actualizar_pregunta': 'manage_questions',
+        'eliminar_pregunta': 'manage_questions',
+        'explicacion_pregunta': 'manage_questions',
+        'iniciar_intento': 'resolve',
+        'finalizar_intento': 'resolve',
+        'disponibilidad_usuario': 'manage_availability',
+        'disponibilidades_usuarios': 'manage_availability',
+        'mis_intentos': 'view_attempts',
+        'resultado_intento': 'view_attempts',
+        'ranking': 'view_ranking',
+    }
 
     def get_queryset(self):
         qs = Simulador.objects.select_related('curso', 'ruta').prefetch_related('preguntas')
-        if not is_admin(self.request.user):
+        if not is_admin_user(self.request.user):
             qs = qs.filter(publicado=True)
         return qs
 
@@ -124,18 +129,13 @@ class SimuladorViewSet(viewsets.ModelViewSet):
     def get_serializer_context(self):
         return {**super().get_serializer_context(), 'request': self.request}
 
-    def get_permissions(self):
-        if self.action in ('create', 'update', 'partial_update', 'destroy'):
-            return [IsAuthenticated(), IsAdminOrReadOnly()]
-        return [IsAuthenticated()]
-
     # ── Preguntas del simulador ───────────────────────────────────────────────
 
     @action(detail=True, methods=['get'], url_path='preguntas')
     def preguntas(self, request, pk=None):
         simulador = self.get_object()
         qs = simulador.preguntas.prefetch_related('opciones', 'explicacion').order_by('orden')
-        if is_admin(request.user):
+        if has_role_permission(request.user, 'simulators', 'manage_questions'):
             serializer = PreguntaSerializer(qs, many=True, context={'request': request})
         else:
             serializer = PreguntaPublicaSerializer(qs, many=True, context={'request': request})
@@ -145,7 +145,6 @@ class SimuladorViewSet(viewsets.ModelViewSet):
         detail=True,
         methods=['post'],
         url_path='preguntas-crear',
-        permission_classes=[IsAuthenticated, IsAdminOrReadOnly],
     )
     def crear_pregunta(self, request, pk=None):
         simulador = self.get_object()
@@ -158,7 +157,6 @@ class SimuladorViewSet(viewsets.ModelViewSet):
         detail=True,
         methods=['put', 'patch'],
         url_path=r'preguntas-item/(?P<pregunta_pk>[^/.]+)',
-        permission_classes=[IsAuthenticated, IsAdminOrReadOnly],
     )
     def actualizar_pregunta(self, request, pk=None, pregunta_pk=None):
         simulador = self.get_object()
@@ -177,7 +175,6 @@ class SimuladorViewSet(viewsets.ModelViewSet):
         detail=True,
         methods=['delete'],
         url_path=r'preguntas-item/(?P<pregunta_pk>[^/.]+)/eliminar',
-        permission_classes=[IsAuthenticated, IsAdminOrReadOnly],
     )
     def eliminar_pregunta(self, request, pk=None, pregunta_pk=None):
         simulador = self.get_object()
@@ -195,7 +192,6 @@ class SimuladorViewSet(viewsets.ModelViewSet):
         methods=['put', 'patch'],
         url_path=r'preguntas-item/(?P<pregunta_pk>[^/.]+)/explicacion',
         parser_classes=[MultiPartParser, FormParser, JSONParser],
-        permission_classes=[IsAuthenticated, IsAdminOrReadOnly],
     )
     def explicacion_pregunta(self, request, pk=None, pregunta_pk=None):
         simulador = self.get_object()
@@ -334,12 +330,11 @@ class SimuladorViewSet(viewsets.ModelViewSet):
         detail=True,
         methods=['get', 'post', 'patch'],
         url_path='disponibilidad-usuario',
-        permission_classes=[IsAuthenticated, IsAdminOrReadOnly],
     )
     def disponibilidad_usuario(self, request, pk=None):
         simulador = self.get_object()
 
-        if not is_admin(request.user):
+        if not has_role_permission(request.user, 'simulators', 'manage_availability'):
             return Response({'detail': 'No tienes permisos para esta acción.'}, status=status.HTTP_403_FORBIDDEN)
 
         if request.method == 'GET':
@@ -409,12 +404,11 @@ class SimuladorViewSet(viewsets.ModelViewSet):
         detail=True,
         methods=['get'],
         url_path='disponibilidades-usuarios',
-        permission_classes=[IsAuthenticated, IsAdminOrReadOnly],
     )
     def disponibilidades_usuarios(self, request, pk=None):
         simulador = self.get_object()
 
-        if not is_admin(request.user):
+        if not has_role_permission(request.user, 'simulators', 'manage_availability'):
             return Response({'detail': 'No tienes permisos para esta acción.'}, status=status.HTTP_403_FORBIDDEN)
 
         disponibilidades = SimuladorDisponibilidadUsuario.objects.filter(

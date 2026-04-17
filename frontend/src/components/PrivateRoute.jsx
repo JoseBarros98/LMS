@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { getDefaultDashboardPath, isAdminRole } from '../utils/navigation'
 
 function getPagesFromToken(token) {
     if (!token) return []
@@ -12,11 +13,17 @@ function getPagesFromToken(token) {
     }
 }
 
-export default function PrivateRoute({ children, requiredPage } ) {
+export default function PrivateRoute({ children, requiredPage, adminOnly = false } ) {
     const { token, user } = useAuth()
 
     if (!token) {
         return <Navigate to="/login" replace />
+    }
+
+    const dashboardPath = getDefaultDashboardPath(user, token)
+
+    if (adminOnly && !isAdminRole(user?.role?.name)) {
+        return <Navigate to={dashboardPath} replace />
     }
 
     if (!requiredPage) {
@@ -33,5 +40,5 @@ export default function PrivateRoute({ children, requiredPage } ) {
         return children
     }
 
-    return <Navigate to="/dashboard" replace />
+    return <Navigate to={dashboardPath} replace />
 }

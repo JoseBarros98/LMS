@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
+import { getDefaultDashboardPath } from '../utils/navigation'
 
 export default function Login() {
     const { login } = useAuth()
@@ -19,7 +20,7 @@ export default function Login() {
         setError(null)
         try {
         await login(form.email.trim(), form.password.trim())
-        navigate('/dashboard')
+        navigate(getDefaultDashboardPath(JSON.parse(localStorage.getItem('user') || 'null'), localStorage.getItem('access_token')))
         } catch (err) {
         setError('Correo o contraseña incorrectos')
         } finally {

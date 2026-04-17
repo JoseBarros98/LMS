@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from core.access import is_admin_user
 from .models import TicketCategory, Ticket, TicketResponse, Notification
 
 User = get_user_model()
@@ -98,7 +99,7 @@ class TicketUpdateSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         request = self.context['request']
-        is_admin = request.user.role.name.lower() == 'administrador' if request.user.role else False
+        is_admin = is_admin_user(request.user)
 
         if is_admin:
             return attrs
@@ -127,7 +128,7 @@ class TicketResponseCreateSerializer(serializers.ModelSerializer):
         ticket = Ticket.objects.get(id=ticket_id)
         
         # Determinar si es respuesta de admin
-        is_admin = user.role.name.lower() == 'administrador' if user.role else False
+        is_admin = is_admin_user(user)
         
         validated_data.update({
             'ticket': ticket,

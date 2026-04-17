@@ -1,16 +1,21 @@
 import { useState, useEffect } from 'react'
 import { jwtDecode } from 'jwt-decode'
+import { useAuth } from '../context/AuthContext'
+import { isAdminRole } from '../utils/navigation'
 
 export function usePermissions() {
+  const { user, token } = useAuth()
   const [userPermissions, setUserPermissions] = useState({})
   const [loading, setLoading] = useState(true)
 
   const isAdmin = () => {
-    const token = localStorage.getItem('access_token')
+    const roleName = user?.role?.name
+    if (roleName) return isAdminRole(roleName)
+
     if (!token) return false
     try {
       const decoded = jwtDecode(token)
-      return decoded.role?.name?.toLowerCase() === 'administrador'
+      return isAdminRole(decoded.role?.name)
     } catch {
       return false
     }
@@ -18,7 +23,6 @@ export function usePermissions() {
 
   useEffect(() => {
     const loadPermissions = () => {
-      const token = localStorage.getItem('access_token')
       if (!token) {
         setLoading(false)
         return
@@ -26,9 +30,7 @@ export function usePermissions() {
 
       try {
         const decoded = jwtDecode(token)
-        
-        // Extraer permisos del rol del usuario
-        const permissions = decoded.role?.permissions || {}
+        const permissions = user?.role?.permissions || decoded.role?.permissions || {}
         
         setUserPermissions(permissions)
       } catch (error) {
@@ -40,7 +42,7 @@ export function usePermissions() {
     }
 
     loadPermissions()
-  }, [])
+  }, [token, user])
 
   const hasPermission = (resource, action) => {
     if (loading) return false
@@ -73,7 +75,7 @@ export function usePermissions() {
   }
 
   // Acciones específicas
-  const canResolveSimulators = () => isAdmin() || hasPermission('simulators', 'resolver')
+  const canResolveSimulators = () => isAdmin() || hasPermission('simulators', 'resolve')
 
   return {
     userPermissions,

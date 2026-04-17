@@ -1,12 +1,11 @@
-from rest_framework import viewsets, status, permissions
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework import status
+from core.access import has_any_role_permission, has_role_permission, is_admin_user
+from core.api_permissions import RoleActionPermission
 from .models import Ticket, TicketCategory, TicketResponse
 from .serializers import (
     TicketCategorySerializer, TicketSerializer, TicketCreateSerializer, TicketUpdateSerializer,
@@ -22,9 +21,12 @@ def category_list(request):
     Vista simple para listar categorías
     """
     try:
+        if not has_role_permission(request.user, 'categories', 'read'):
+            return Response({'detail': 'No tienes permisos para ver categorias.'}, status=status.HTTP_403_FORBIDDEN)
+
         queryset = TicketCategory.objects.order_by('order', 'name')
         include_inactive = str(request.query_params.get('include_inactive', '')).lower() in {'1', 'true', 'yes'}
-        is_admin = request.user.role.name.lower() == 'administrador' if request.user and request.user.role else False
+        is_admin = is_admin_user(request.user)
 
         if not (is_admin and include_inactive):
             queryset = queryset.filter(status=TicketCategory.STATUS_ACTIVE)
@@ -47,8 +49,11 @@ def ticket_list(request):
         user = request.user
         if not user or not user.role:
             return Response([])
+
+        if not has_any_role_permission(user, 'tickets', ['read', 'read_own']):
+            return Response({'detail': 'No tienes permisos para ver tickets.'}, status=status.HTTP_403_FORBIDDEN)
         
-        if user.role.name.lower() == 'administrador':
+        if has_role_permission(user, 'tickets', 'read'):
             tickets = Ticket.objects.select_related('user', 'assigned_to', 'category').all()
         else:
             tickets = Ticket.objects.filter(user=user).select_related('user', 'assigned_to', 'category')
@@ -60,53 +65,14 @@ def ticket_list(request):
         return Response({'error': str(e)}, status=500)
 
 
-class IsAdminOrReadOnly(permissions.BasePermission):
-    """Permiso personalizado: Solo admins pueden escribir, otros solo leer"""
-    
-    def has_permission(self, request, view):
-        if request.method in permissions.SAFE_METHODS:
-            return True
-        
-        if not request.user or not request.user.role:
-            return False
-            
-        return request.user.role.name.lower() == 'administrador'
-
-
-class IsOwnerOrAdmin(permissions.BasePermission):
-    """Permiso personalizado: Solo dueño del ticket o admin puede acceder"""
-    
-    def has_object_permission(self, request, view, obj):
-        if not request.user or not request.user.role:
-            return False
-            
-        # Admin puede acceder a todos
-        if request.user.role.name.lower() == 'administrador':
-            return True
-            
-        # Usuario solo puede acceder a sus propios tickets
-        return obj.user == request.user
-
-
 class TicketCategoryViewSet(viewsets.ModelViewSet):
     """
     ViewSet para gestionar categorías de tickets (solo administradores)
     """
     queryset = TicketCategory.objects.all()
     serializer_class = TicketCategorySerializer
-    permission_classes = [IsAuthenticated]
-    
-    def get_permissions(self):
-        # Solo administradores pueden gestionar categorías
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            if not self.request.user or not self.request.user.role:
-                return [IsAuthenticated()]
-            
-            if self.request.user.role.name.lower() != 'administrador':
-                self.permission_denied_message = "No tienes permisos para gestionar categorías"
-                raise permissions.PermissionDenied()
-        
-        return [permission() for permission in self.permission_classes]
+    permission_classes = [IsAuthenticated, RoleActionPermission]
+    permission_resource = 'categories'
     
     def get_queryset(self):
         queryset = TicketCategory.objects.order_by('order', 'name')
@@ -117,7 +83,7 @@ class TicketCategoryViewSet(viewsets.ModelViewSet):
             return queryset
 
         include_inactive = str(self.request.query_params.get('include_inactive', '')).lower() in {'1', 'true', 'yes'}
-        is_admin = self.request.user.role.name.lower() == 'administrador' if self.request.user and self.request.user.role else False
+        is_admin = is_admin_user(self.request.user)
 
         if is_admin and include_inactive:
             return queryset
@@ -143,40 +109,26 @@ class TicketCategoryViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 
-class IsAdminOrReadOnly(permissions.BasePermission):
-    """Permiso personalizado: Solo admins pueden escribir, otros solo leer"""
-    
-    def has_permission(self, request, view):
-        if request.method in permissions.SAFE_METHODS:
-            return True
-        
-        if not request.user or not request.user.role:
-            return False
-            
-        return request.user.role.name.lower() == 'administrador'
-
-
-class IsOwnerOrAdmin(permissions.BasePermission):
-    """Permiso personalizado: Solo dueño del ticket o admin puede acceder"""
-    
-    def has_object_permission(self, request, view, obj):
-        if not request.user or not request.user.role:
-            return False
-            
-        # Admin puede acceder a todos
-        if request.user.role.name.lower() == 'administrador':
-            return True
-            
-        # Usuario solo puede acceder a sus propios tickets
-        return obj.user == request.user
-
-
 class TicketViewSet(viewsets.ModelViewSet):
     """
     ViewSet para gestionar tickets de soporte
     - Usuarios: pueden crear y ver sus tickets
     - Admins: pueden ver y gestionar todos los tickets
     """
+    permission_classes = [IsAuthenticated, RoleActionPermission]
+    permission_resource = 'tickets'
+    permission_action_map = {
+        'list': ['read', 'read_own'],
+        'retrieve': ['read', 'read_own'],
+        'create': 'create',
+        'update': ['update', 'update_own'],
+        'partial_update': ['update', 'update_own'],
+        'destroy': 'delete',
+        'respond': 'respond',
+        'responses': ['read', 'read_own'],
+        'assign': 'update',
+        'close': 'update',
+    }
     
     def get_queryset(self):
         user = self.request.user
@@ -184,7 +136,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             return Ticket.objects.none()
             
         # Admins ven todos los tickets
-        if user.role.name.lower() == 'administrador':
+        if has_role_permission(user, 'tickets', 'read'):
             return Ticket.objects.select_related('user', 'assigned_to', 'category').all()
         
         # Usuarios ven solo sus tickets
@@ -207,15 +159,6 @@ class TicketViewSet(viewsets.ModelViewSet):
             return TicketUpdateSerializer
         return TicketSerializer
     
-    def get_permissions(self):
-        if self.action == 'create':
-            permission_classes = [IsAuthenticated]
-        elif self.action in ['update', 'partial_update', 'destroy']:
-            permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
-        else:
-            permission_classes = [IsAuthenticated]
-        return [permission() for permission in permission_classes]
-
     def perform_create(self, serializer):
         ticket = serializer.save()
         notify_ticket_created(ticket, self.request.user)
@@ -232,7 +175,7 @@ class TicketViewSet(viewsets.ModelViewSet):
         
         # Verificar permisos: usuario dueño o admin
         if (ticket.user != request.user and 
-            request.user.role.name.lower() != 'administrador'):
+            not has_role_permission(request.user, 'tickets', 'read')):
             return Response(
                 {'error': 'No tienes permisos para responder este ticket'},
                 status=status.HTTP_403_FORBIDDEN
@@ -247,7 +190,7 @@ class TicketViewSet(viewsets.ModelViewSet):
             response = serializer.save()
             
             # Si es respuesta de admin y el ticket estaba abierto, cambiar estado
-            if (response.is_admin_response and ticket.status == 'open'):
+            if response.is_admin_response and ticket.status == 'open' and has_role_permission(request.user, 'tickets', 'update'):
                 previous_status = ticket.status
                 ticket.status = 'in_progress'
                 ticket.save()
@@ -266,7 +209,7 @@ class TicketViewSet(viewsets.ModelViewSet):
         
         # Verificar permisos
         if (ticket.user != request.user and 
-            request.user.role.name.lower() != 'administrador'):
+            not has_role_permission(request.user, 'tickets', 'read')):
             return Response(
                 {'error': 'No tienes permisos para ver este ticket'},
                 status=status.HTTP_403_FORBIDDEN
@@ -279,7 +222,7 @@ class TicketViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['patch'])
     def assign(self, request, pk=None):
         """Asignar ticket a un administrador (solo admins)"""
-        if request.user.role.name.lower() != 'administrador':
+        if not has_role_permission(request.user, 'tickets', 'update'):
             return Response(
                 {'error': 'No tienes permisos para asignar tickets'},
                 status=status.HTTP_403_FORBIDDEN
@@ -319,7 +262,7 @@ class TicketViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['patch'])
     def close(self, request, pk=None):
         """Cerrar un ticket (solo admins)"""
-        if request.user.role.name.lower() != 'administrador':
+        if not has_role_permission(request.user, 'tickets', 'update'):
             return Response(
                 {'error': 'No tienes permisos para cerrar tickets'},
                 status=status.HTTP_403_FORBIDDEN

@@ -5,10 +5,12 @@ import {
     User, ShieldCheck, Tag, UserPlus, Map
 } from 'lucide-react'
 import { usePermissions } from '../hooks/usePermissions'
+import { useAuth } from '../context/AuthContext'
+import { getDefaultDashboardPath } from '../utils/navigation'
 
 // Mapeo de etiquetas de menú a nombres de páginas en permisos
 const pageNameMap = {
-    'Inicio': 'dashboard',
+    'Dashboard': 'dashboard',
     'Calendario': 'calendario',
     'Cursos': 'cursos',
     'Matrículas': 'matriculas',
@@ -26,7 +28,7 @@ const menu = [
     {
         section: 'MENÚ',
         items: [
-            { label: 'Inicio', icon: LayoutDashboard, path: '/dashboard' },
+            { label: 'Dashboard', icon: LayoutDashboard, path: '/dashboard' },
             { label: 'Calendario', icon: Calendar, path: '/calendario' },
         ]
     },
@@ -68,6 +70,8 @@ export default function Sidebar({ collapsed, onToggle }) {
     const navigate = useNavigate()
     const location = useLocation()
     const { canAccessPage, loading } = usePermissions()
+    const { user, token } = useAuth()
+    const dashboardPath = getDefaultDashboardPath(user, token)
 
     if (loading) {
         return null
@@ -113,9 +117,9 @@ export default function Sidebar({ collapsed, onToggle }) {
                             return (
                                 <button
                                 key={item.path}
-                                onClick={() => navigate(item.path)}
+                                onClick={() => navigate(item.path === '/dashboard' ? dashboardPath : item.path)}
                                 className={`w-full flex items-center gap-3 px-4 py-2.5 transition-all
-                                    ${isActive
+                                    ${location.pathname === (item.path === '/dashboard' ? dashboardPath : item.path)
                                     ? 'bg-blue-600 text-white'
                                     : 'text-gray-400 hover:bg-gray-800 hover:text-white'
                                     }

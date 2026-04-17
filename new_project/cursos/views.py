@@ -4,10 +4,12 @@ from decimal import Decimal
 from django.db.models import Count, DecimalField, DurationField, Q, Sum, Value
 from django.db import transaction
 from django.db.models.functions import Coalesce
-from rest_framework import permissions, status, viewsets
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from core.access import has_role_permission, is_admin_user
+from core.api_permissions import RoleActionPermission
 from core.models import Role, User
 from core.serializers import UserSerializer
 
@@ -27,28 +29,6 @@ from .serializers import (
     LeccionDetalleSerializer,
     MediatecaItemSerializer,
 )
-
-
-class IsAdminOrReadOnly(permissions.BasePermission):
-    def has_permission(self, request, view):
-        if request.method in permissions.SAFE_METHODS:
-            return True
-
-        return (
-            request.user
-            and request.user.role
-            and request.user.role.name.lower() == 'administrador'
-        )
-
-
-def is_admin_user(user):
-    return bool(
-        user
-        and getattr(user, 'role', None)
-        and user.role
-        and user.role.name.lower() == 'administrador'
-    )
-
 
 def get_active_enrollment_filters(user):
     today = date.today()
@@ -145,7 +125,8 @@ class RutaViewSet(viewsets.ModelViewSet):
         ),
     ).order_by('orden', 'titulo')
     serializer_class = RutaSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+    permission_classes = [IsAuthenticated, RoleActionPermission]
+    permission_resource = 'routes'
 
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def crear_estudiante_matriculado(self, request, pk=None):
@@ -187,7 +168,8 @@ class RutaViewSet(viewsets.ModelViewSet):
 
 class CursoViewSet(viewsets.ModelViewSet):
     serializer_class = CursoSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+    permission_classes = [IsAuthenticated, RoleActionPermission]
+    permission_resource = 'courses'
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -301,7 +283,16 @@ class CursoViewSet(viewsets.ModelViewSet):
 
 class MatriculaRutaViewSet(viewsets.ModelViewSet):
     serializer_class = MatriculaRutaSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+    permission_classes = [IsAuthenticated, RoleActionPermission]
+    permission_resource = 'enrollments'
+    permission_action_map = {
+        'list': ['read', 'read_own'],
+        'retrieve': ['read', 'read_own'],
+        'create': 'create',
+        'update': 'update',
+        'partial_update': 'update',
+        'destroy': 'delete',
+    }
 
     def get_queryset(self):
         queryset = MatriculaRuta.objects.select_related('user', 'created_by', 'ruta').prefetch_related('cuotas_pago').all()
@@ -329,7 +320,16 @@ class MatriculaRutaViewSet(viewsets.ModelViewSet):
 
 class MatriculaCursoViewSet(viewsets.ModelViewSet):
     serializer_class = MatriculaCursoSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+    permission_classes = [IsAuthenticated, RoleActionPermission]
+    permission_resource = 'enrollments'
+    permission_action_map = {
+        'list': ['read', 'read_own'],
+        'retrieve': ['read', 'read_own'],
+        'create': 'create',
+        'update': 'update',
+        'partial_update': 'update',
+        'destroy': 'delete',
+    }
 
     def get_queryset(self):
         queryset = MatriculaCurso.objects.select_related('user', 'created_by', 'curso', 'curso__ruta').prefetch_related('cuotas_pago').all()
@@ -357,7 +357,17 @@ class MatriculaCursoViewSet(viewsets.ModelViewSet):
 
 class CuotaPagoMatriculaViewSet(viewsets.ModelViewSet):
     serializer_class = CuotaPagoControlSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+    permission_classes = [IsAuthenticated, RoleActionPermission]
+    permission_resource = 'enrollments'
+    permission_action_map = {
+        'list': ['read', 'read_own'],
+        'retrieve': ['read', 'read_own'],
+        'create': 'create',
+        'update': 'update',
+        'partial_update': 'update',
+        'destroy': 'delete',
+        'registrar_pago': 'update',
+    }
 
     def get_queryset(self):
         queryset = CuotaPagoMatricula.objects.select_related(
@@ -501,7 +511,8 @@ class ProgresoLeccionViewSet(viewsets.ModelViewSet):
 
 class SeccionViewSet(viewsets.ModelViewSet):
     serializer_class = SeccionDetalleSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+    permission_classes = [IsAuthenticated, RoleActionPermission]
+    permission_resource = 'courses'
 
     def get_queryset(self):
         queryset = Seccion.objects.select_related('curso').prefetch_related('lecciones').all()
@@ -522,7 +533,8 @@ class SeccionViewSet(viewsets.ModelViewSet):
 
 class LeccionViewSet(viewsets.ModelViewSet):
     serializer_class = LeccionDetalleSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+    permission_classes = [IsAuthenticated, RoleActionPermission]
+    permission_resource = 'courses'
 
     def get_queryset(self):
         queryset = Leccion.objects.select_related('seccion', 'seccion__curso').all()
@@ -592,7 +604,8 @@ class ComentarioCursoViewSet(viewsets.ModelViewSet):
 
 class MediatecaItemViewSet(viewsets.ModelViewSet):
     serializer_class = MediatecaItemSerializer
-    permission_classes = [IsAuthenticated, IsAdminOrReadOnly]
+    permission_classes = [IsAuthenticated, RoleActionPermission]
+    permission_resource = 'resources'
 
     def get_queryset(self):
         queryset = MediatecaItem.objects.select_related('curso', 'parent').prefetch_related('children').all()

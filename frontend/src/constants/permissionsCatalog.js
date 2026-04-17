@@ -3,7 +3,7 @@ export const PERMISSIONS_CATALOG = {
     label: 'Acceso a Paginas',
     help: 'Controla que pantallas puede abrir el rol.',
     actions: [
-      { key: 'dashboard', label: 'Inicio' },
+      { key: 'dashboard', label: 'Dashboard' },
       { key: 'calendario', label: 'Calendario' },
       { key: 'cursos', label: 'Cursos' },
       { key: 'simuladores', label: 'Simuladores' },
@@ -16,6 +16,16 @@ export const PERMISSIONS_CATALOG = {
       { key: 'users', label: 'Usuarios' },
       { key: 'roles', label: 'Roles' },
       { key: 'configuracion', label: 'Configuracion' },
+    ],
+  },
+  dashboard: {
+    label: 'Dashboard',
+    help: 'Define que bloques del dashboard puede ver el rol.',
+    actions: [
+      { key: 'overview', label: 'Resumen General' },
+      { key: 'academy', label: 'Panel Academico' },
+      { key: 'support', label: 'Panel de Soporte' },
+      { key: 'activity', label: 'Actividad Reciente' },
     ],
   },
   users: {
@@ -142,6 +152,7 @@ export const PERMISSIONS_CATALOG = {
 
 export const RESOURCE_ORDER = [
   'pages',
+  'dashboard',
   'users',
   'roles',
   'courses',

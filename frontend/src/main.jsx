@@ -5,8 +5,8 @@ import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from './context/AuthContext'
 import PrivateRoute from './components/PrivateRoute'
 import Login from './pages/Login'
-import App from './App'
 import './index.css'
+import AdminDashboard from './pages/AdminDashboard'
 import Usuarios from './pages/Usuarios'
 import Roles from './pages/Roles'
 import Configuracion from './pages/Configuracion'
@@ -26,6 +26,7 @@ import SimuladorResultado from './pages/SimuladorResultado'
 import SimuladorRanking from './pages/SimuladorRanking'
 import Calendario from './pages/Calendario'
 import Flashcards from './pages/Flashcards'
+import StudentDashboard from './pages/StudentDashboard'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -36,7 +37,13 @@ createRoot(document.getElementById('root')).render(
 
           <Route path="/dashboard" element={
             <PrivateRoute requiredPage="dashboard">
-              <App />
+              <StudentDashboard />
+            </PrivateRoute>
+          } />
+
+          <Route path="/admin/dashboard" element={
+            <PrivateRoute requiredPage="dashboard" adminOnly>
+              <AdminDashboard />
             </PrivateRoute>
           } />
 

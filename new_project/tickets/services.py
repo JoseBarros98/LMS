@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from core.access import ADMIN_ROLE_NAME
 
 from .models import Notification
 
@@ -18,7 +19,7 @@ def get_status_label(status):
 
 
 def _admin_users():
-    return User.objects.filter(role__name__iexact='administrador')
+    return User.objects.filter(role__name__iexact=ADMIN_ROLE_NAME)
 
 
 def notify_ticket_created(ticket, actor):
