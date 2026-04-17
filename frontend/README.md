@@ -1,16 +1,73 @@
-# React + Vite
+# Frontend - Plataforma LMS
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplicación cliente construida con React y Vite. Se encarga de la interfaz de usuario, autenticación y consumo de la API Django.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- React 19
+- Vite 8
+- React Router
+- Axios
+- TailwindCSS 4
+- Nginx (en Docker para servir build de producción)
 
-## React Compiler
+## Scripts disponibles
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm install
+npm run dev      # Desarrollo local (Vite)
+npm run build    # Build de producción
+npm run preview  # Previsualizar build
+npm run lint     # Lint del proyecto
+```
 
-## Expanding the ESLint configuration
+## Desarrollo local (sin Docker)
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+1. Instala dependencias:
+
+```bash
+npm install
+```
+
+2. Inicia el servidor de desarrollo:
+
+```bash
+npm run dev
+```
+
+3. Abre la URL que muestra Vite (por defecto http://localhost:5173).
+
+Nota: para funcionar correctamente necesita que el backend esté levantado y accesible.
+
+## Ejecución con Docker
+
+Este frontend se construye y sirve con Nginx desde el servicio `frontend` en `docker-compose.yml`.
+
+Desde la raíz del proyecto:
+
+```bash
+docker-compose up --build -d frontend
+```
+
+Acceso:
+
+- http://localhost
+
+## Estructura relevante
+
+```text
+src/
+├── api/          # Clientes y llamadas a API
+├── components/   # Componentes reutilizables y modales
+├── context/      # Contextos globales (AuthContext)
+├── hooks/        # Hooks personalizados
+├── pages/        # Vistas/páginas principales
+└── utils/        # Utilidades
+```
+
+## Recomendaciones
+
+- Mantén la lógica de red dentro de `src/api/`.
+- Usa `src/context/AuthContext.jsx` para información de sesión.
+- Antes de abrir PR, ejecuta `npm run lint` y valida el flujo de login.
+
