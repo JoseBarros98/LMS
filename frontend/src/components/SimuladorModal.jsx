@@ -12,12 +12,6 @@ export default function SimuladorModal({ simulador, onClose, onSaved }) {
     titulo: simulador?.titulo || '',
     descripcion: simulador?.descripcion || '',
     imagen_portada_url: simulador?.imagen_portada_url || '',
-    fecha_apertura: simulador?.fecha_apertura
-      ? simulador.fecha_apertura.slice(0, 16)
-      : '',
-    fecha_cierre: simulador?.fecha_cierre
-      ? simulador.fecha_cierre.slice(0, 16)
-      : '',
     tiempo_limite_minutos: simulador?.tiempo_limite_minutos ?? 60,
     max_intentos: simulador?.max_intentos ?? 1,
     publicado: simulador?.publicado ?? false,
@@ -237,9 +231,8 @@ export default function SimuladorModal({ simulador, onClose, onSaved }) {
               </datalist>
             </Field>
           </div>
-          <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
-            La disponibilidad se calculará automáticamente por usuario al completar el curso/ruta (ventana de 7 días).
-            Estas fechas son solo una ventana global opcional.
+          <p className="text-xs text-blue-700 bg-blue-50 rounded-lg px-3 py-2">
+            La disponibilidad se calcula automáticamente: el simulador estará disponible 7 días desde que el estudiante completa el curso/ruta. También puedes asignar ventanas individuales por usuario.
           </p>
 
           <Field label="URL de imagen portada">
@@ -252,19 +245,6 @@ export default function SimuladorModal({ simulador, onClose, onSaved }) {
             <input type="file" accept="image/*" onChange={(e) => setImagen(e.target.files[0])}
               className="w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700" />
           </Field>
-
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Fecha de apertura">
-              <input type="datetime-local" name="fecha_apertura" value={form.fecha_apertura}
-                onChange={handleChange}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </Field>
-            <Field label="Fecha de cierre">
-              <input type="datetime-local" name="fecha_cierre" value={form.fecha_cierre}
-                onChange={handleChange}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
-            </Field>
-          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <Field label="Tiempo límite (min)">

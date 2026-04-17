@@ -79,6 +79,10 @@ export const simuladoresApi = {
     return res.data
   },
 
+  eliminarDisponibilidadUsuario: async (simuladorId, userId) => {
+    await api.delete(`/simuladores/${simuladorId}/disponibilidad-usuario/`, { params: { user: userId } })
+  },
+
   getDisponibilidadesUsuarios: async (simuladorId) => {
     const res = await api.get(`/simuladores/${simuladorId}/disponibilidades-usuarios/`)
     return res.data

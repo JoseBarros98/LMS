@@ -91,6 +91,7 @@ class SimuladorListSerializer(serializers.ModelSerializer):
     total_preguntas = serializers.SerializerMethodField()
     fecha_apertura_efectiva = serializers.SerializerMethodField()
     fecha_cierre_efectiva = serializers.SerializerMethodField()
+    intentos_realizados = serializers.SerializerMethodField()
 
     class Meta:
         model = Simulador
@@ -99,11 +100,10 @@ class SimuladorListSerializer(serializers.ModelSerializer):
             'imagen_portada_url', 'imagen_portada_url_full',
             'curso', 'curso_nombre',
             'ruta', 'ruta_nombre',
-            'fecha_apertura', 'fecha_cierre',
             'fecha_apertura_efectiva', 'fecha_cierre_efectiva',
             'tiempo_limite_minutos', 'max_intentos',
             'publicado', 'esta_disponible',
-            'total_preguntas',
+            'total_preguntas', 'intentos_realizados',
         ]
 
     def get_imagen_portada_url_full(self, obj):
@@ -125,6 +125,13 @@ class SimuladorListSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         user = getattr(request, 'user', None)
         return obj.is_available_for_user(user)
+
+    def get_intentos_realizados(self, obj):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not user or not user.is_authenticated:
+            return 0
+        return IntentoSimulador.objects.filter(simulador=obj, user=user, completado=True).count()
 
     def get_fecha_apertura_efectiva(self, obj):
         request = self.context.get('request')
@@ -153,7 +160,6 @@ class SimuladorWriteSerializer(serializers.ModelSerializer):
             'id', 'titulo', 'descripcion',
             'imagen_portada', 'imagen_portada_url',
             'curso', 'ruta',
-            'fecha_apertura', 'fecha_cierre',
             'tiempo_limite_minutos', 'max_intentos',
             'publicado',
         ]

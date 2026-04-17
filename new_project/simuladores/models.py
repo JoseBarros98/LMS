@@ -36,8 +36,6 @@ class Simulador(models.Model):
         verbose_name='Ruta',
     )
 
-    fecha_apertura = models.DateTimeField(blank=True, null=True, verbose_name='Fecha de apertura')
-    fecha_cierre = models.DateTimeField(blank=True, null=True, verbose_name='Fecha de cierre')
     tiempo_limite_minutos = models.PositiveIntegerField(
         default=60, verbose_name='Tiempo límite (minutos)'
     )
@@ -120,9 +118,6 @@ class Simulador(models.Model):
         if override:
             return override.fecha_apertura, override.fecha_cierre
 
-        if self.fecha_apertura or self.fecha_cierre:
-            return self.fecha_apertura, self.fecha_cierre
-
         return self.get_auto_window_for_user(user)
 
     def is_available_for_user(self, user):
@@ -140,12 +135,6 @@ class Simulador(models.Model):
 
     @property
     def esta_disponible(self):
-        # Compatibilidad para código previo: evalúa solo la ventana global.
-        now = timezone.now()
-        if self.fecha_apertura and now < self.fecha_apertura:
-            return False
-        if self.fecha_cierre and now > self.fecha_cierre:
-            return False
         return self.publicado
 
 

@@ -328,7 +328,7 @@ class SimuladorViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
-        methods=['get', 'post', 'patch'],
+        methods=['get', 'post', 'patch', 'delete'],
         url_path='disponibilidad-usuario',
     )
     def disponibilidad_usuario(self, request, pk=None):
@@ -336,6 +336,18 @@ class SimuladorViewSet(viewsets.ModelViewSet):
 
         if not has_role_permission(request.user, 'simulators', 'manage_availability'):
             return Response({'detail': 'No tienes permisos para esta acción.'}, status=status.HTTP_403_FORBIDDEN)
+
+        if request.method == 'DELETE':
+            user_id = request.query_params.get('user')
+            if not user_id:
+                return Response({'detail': 'Debes enviar ?user=<uuid>.'}, status=status.HTTP_400_BAD_REQUEST)
+            deleted, _ = SimuladorDisponibilidadUsuario.objects.filter(
+                simulador=simulador,
+                user_id=user_id,
+            ).delete()
+            if not deleted:
+                return Response({'detail': 'No se encontró la disponibilidad.'}, status=status.HTTP_404_NOT_FOUND)
+            return Response(status=status.HTTP_204_NO_CONTENT)
 
         if request.method == 'GET':
             user_id = request.query_params.get('user')

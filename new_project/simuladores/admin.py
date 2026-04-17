@@ -28,7 +28,7 @@ class PreguntaAdmin(admin.ModelAdmin):
 
 @admin.register(Simulador)
 class SimuladorAdmin(admin.ModelAdmin):
-    list_display = ['titulo', 'publicado', 'fecha_apertura', 'fecha_cierre', 'max_intentos']
+    list_display = ['titulo', 'publicado', 'max_intentos']
     list_filter = ['publicado']
 
 

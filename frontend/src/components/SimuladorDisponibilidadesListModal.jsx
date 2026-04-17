@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Calendar, Edit2, User, X } from 'lucide-react'
+import { Calendar, Edit2, Trash2, User, X } from 'lucide-react'
 import { simuladoresApi } from '../api/simuladores'
+import { showConfirm, showError, showSuccess } from '../utils/toast'
 
 function formatDateTime(value) {
   if (!value) return '–'
@@ -17,24 +18,38 @@ export default function SimuladorDisponibilidadesListModal({ simulador, onClose,
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [deletingId, setDeletingId] = useState(null)
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        setLoading(true)
-        setError('')
-        const data = await simuladoresApi.getDisponibilidadesUsuarios(simulador.id)
-        setRows(Array.isArray(data) ? data : [])
-      } catch (err) {
-        setRows([])
-        setError(err?.response?.data?.detail || 'No se pudieron cargar las disponibilidades.')
-      } finally {
-        setLoading(false)
-      }
+  const load = async () => {
+    try {
+      setLoading(true)
+      setError('')
+      const data = await simuladoresApi.getDisponibilidadesUsuarios(simulador.id)
+      setRows(Array.isArray(data) ? data : [])
+    } catch (err) {
+      setRows([])
+      setError(err?.response?.data?.detail || 'No se pudieron cargar las disponibilidades.')
+    } finally {
+      setLoading(false)
     }
+  }
 
-    load()
-  }, [simulador.id])
+  useEffect(() => { load() }, [simulador.id])
+
+  const handleEliminar = async (row) => {
+    const nombre = row.user_nombre || row.user_email
+    if (!await showConfirm(`¿Eliminar la disponibilidad de ${nombre}?`)) return
+    try {
+      setDeletingId(row.user)
+      await simuladoresApi.eliminarDisponibilidadUsuario(simulador.id, row.user)
+      showSuccess('Disponibilidad eliminada.')
+      await load()
+    } catch {
+      showError('No se pudo eliminar la disponibilidad.')
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   const total = useMemo(() => rows.length, [rows])
 
@@ -102,13 +117,23 @@ export default function SimuladorDisponibilidadesListModal({ simulador, onClose,
                       <td className="py-3 pr-3 text-gray-600">{row.motivo || '–'}</td>
                       <td className="py-3 text-gray-500">{formatDateTime(row.updated_at)}</td>
                       <td className="py-3 pl-2">
-                        <button
-                          onClick={() => onEditarUsuario?.(row.user)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
-                        >
-                          <Edit2 size={12} />
-                          Editar
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => onEditarUsuario?.(row.user)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition"
+                          >
+                            <Edit2 size={12} />
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => handleEliminar(row)}
+                            disabled={deletingId === row.user}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition disabled:opacity-50"
+                          >
+                            <Trash2 size={12} />
+                            Eliminar
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

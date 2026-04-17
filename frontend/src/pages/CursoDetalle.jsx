@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Clock3, MessageCircle, Send, Trash2, BookOpen, Package, Settings, Plus, X, Folder, FolderOpen, FileText, Search, ChevronRight, Link2, Video, Headphones, Pencil, Upload, UserPlus, Monitor, Play } from 'lucide-react'
+import { ArrowLeft, Clock3, MessageCircle, Send, Trash2, BookOpen, Package, Settings, Plus, X, Folder, FolderOpen, FileText, Search, ChevronRight, Link2, Video, Headphones, Pencil, Upload, UserPlus, Monitor, Play, History, CheckCircle2 } from 'lucide-react'
 import Layout from '../components/Layout'
 import StudentEnrollmentModal from '../components/StudentEnrollmentModal'
 import InstruccionesModal from '../components/InstruccionesModal'
@@ -956,6 +956,11 @@ export default function CursoDetalle() {
 
                     {simuladoresCurso.map((simulador) => {
                       const disponible = Boolean(simulador.esta_disponible)
+                      const intentosRealizados = simulador.intentos_realizados ?? 0
+                      const maxIntentos = simulador.max_intentos
+                      const limiteAlcanzado = !isAdmin && intentosRealizados >= maxIntentos
+                      const cursoBloqueado = !isAdmin && leccionesPublicadas.length > 0 && leccionesCompletadas < leccionesPublicadas.length
+                      const puedeResolver = disponible && !cursoBloqueado && !limiteAlcanzado
                       const badgeClassName = disponible
                         ? simuladorEstadoBadge.disponible
                         : simuladorEstadoBadge.noDisponible
@@ -989,15 +994,38 @@ export default function CursoDetalle() {
                             </p>
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() => setSimuladorModal(simulador)}
-                            disabled={!disponible}
-                            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
-                          >
-                            <Play size={16} />
-                            {disponible ? 'Resolver simulador' : 'Aún no disponible'}
-                          </button>
+                          {/* Intentos */}
+                          <div className="flex items-center justify-between bg-white border border-blue-100 rounded-lg px-3 py-2 text-xs">
+                            <div className="flex items-center gap-1.5 text-gray-600">
+                              <History size={13} />
+                              <span>Realizados</span>
+                            </div>
+                            <span className="font-semibold text-blue-600">{intentosRealizados} / {maxIntentos}</span>
+                          </div>
+
+                          {cursoBloqueado && (
+                            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center">
+                              Debes completar todas las lecciones del curso para acceder al simulador ({leccionesCompletadas}/{leccionesPublicadas.length} completadas).
+                            </p>
+                          )}
+
+                          {limiteAlcanzado && !cursoBloqueado && (
+                            <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-center">
+                              Has alcanzado el límite de intentos permitidos.
+                            </p>
+                          )}
+
+                          {!limiteAlcanzado && (
+                            <button
+                              type="button"
+                              onClick={() => setSimuladorModal(simulador)}
+                              disabled={!puedeResolver}
+                              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-300"
+                            >
+                              <Play size={16} />
+                              {disponible ? 'Resolver simulador' : 'Aún no disponible'}
+                            </button>
+                          )}
                         </div>
                       )
                     })}

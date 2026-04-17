@@ -395,14 +395,16 @@ function SimuladorCard({
               Añadir Pregunta
             </button>
           )}
-          <button
-            onClick={onResolver}
-             disabled={!disponible || !canResolveSimulators()}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition text-sm"
-          >
-            <Activity size={15} />
-            Resolver Simulador
-          </button>
+          {(!loaded || intentosCompletados < sim.max_intentos) && (
+            <button
+              onClick={onResolver}
+              disabled={!disponible || !canResolveSimulators()}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition text-sm"
+            >
+              <Activity size={15} />
+              Resolver Simulador
+            </button>
+          )}
           <button
             onClick={onVerHistorial}
             className="w-full flex items-center justify-center gap-2 px-4 py-2 text-blue-600 hover:bg-blue-50 rounded-xl transition text-sm font-medium border border-gray-200"

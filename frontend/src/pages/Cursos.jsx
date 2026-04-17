@@ -45,15 +45,14 @@ export default function Cursos() {
       if (filtroEstado !== 'all') query.estado = filtroEstado
       if (filtroPublicado !== 'all') query.publicado = filtroPublicado === 'si'
 
-      const [rutasData, cursosData] = await Promise.all([
+      const [rutasResult, cursosResult] = await Promise.allSettled([
         cursosApi.getRutas(),
         cursosApi.getCursos(query),
       ])
 
-      setRutas(Array.isArray(rutasData) ? rutasData : [])
-      setCursos(Array.isArray(cursosData) ? cursosData : [])
+      setRutas(rutasResult.status === 'fulfilled' && Array.isArray(rutasResult.value) ? rutasResult.value : [])
+      setCursos(cursosResult.status === 'fulfilled' && Array.isArray(cursosResult.value) ? cursosResult.value : [])
     } catch {
-      setRutas([])
       setCursos([])
     } finally {
       setLoading(false)
