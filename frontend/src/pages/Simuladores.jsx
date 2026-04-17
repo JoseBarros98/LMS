@@ -3,7 +3,7 @@ import {
   Activity, Calendar, CheckCircle2, Clock, Edit2, History,
   Monitor, Plus, Trash2, Trophy, XCircle,
 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout'
 import { useAuth } from '../context/AuthContext'
 import { simuladoresApi } from '../api/simuladores'
@@ -53,6 +53,7 @@ function normalizeSimuladorCoverUrl(url) {
 export default function Simuladores() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const isAdmin = user?.role?.name?.toLowerCase() === 'administrador'
 
   const [simuladores, setSimuladores] = useState([])
@@ -71,6 +72,33 @@ export default function Simuladores() {
   useEffect(() => {
     loadSimuladores()
   }, [])
+
+  useEffect(() => {
+    const state = location.state
+    if (loading || !state?.focusSimuladorId) return
+
+    const simulador = simuladores.find((item) => String(item.id) === String(state.focusSimuladorId))
+
+    if (!simulador) {
+      navigate(location.pathname, { replace: true, state: null })
+      return
+    }
+
+    const cardElement = document.getElementById(`simulador-card-${simulador.id}`)
+    if (cardElement) {
+      cardElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+
+    const openTargetModal = async () => {
+      if (state.openHistorial) {
+        await loadIntentos(simulador.id)
+        setModalHistorial(simulador)
+      }
+      navigate(location.pathname, { replace: true, state: null })
+    }
+
+    openTargetModal()
+  }, [loading, location.pathname, location.state, navigate, simuladores])
 
   const loadSimuladores = async () => {
     try {
@@ -171,6 +199,7 @@ export default function Simuladores() {
               return (
                 <SimuladorCard
                   key={sim.id}
+                  cardId={`simulador-card-${sim.id}`}
                   sim={sim}
                   index={idx}
                   isAdmin={isAdmin}
@@ -248,6 +277,7 @@ export default function Simuladores() {
 // ── SimuladorCard ──────────────────────────────────────────────────────────────
 
 function SimuladorCard({
+  cardId,
   sim, index, isAdmin,
   intentosCompletados,
   onResolver, onVerHistorial, onVerRanking, onEdit, onDelete, onGestionarPreguntas, onGestionarDisponibilidadUsuario, onVerDisponibilidades, onLoadIntentos,
@@ -268,9 +298,9 @@ function SimuladorCard({
   const disponible = sim.esta_disponible
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+    <div id={cardId} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
       {/* Cover */}
-      <div className={`relative h-44 bg-gradient-to-br ${getGradient(index)} flex items-center justify-center`}>
+      <div className={`relative h-44 bg-linear-to-br ${getGradient(index)} flex items-center justify-center`}>
         {portada && !coverError ? (
           <img
             src={portada}
@@ -293,7 +323,7 @@ function SimuladorCard({
           {disponible ? 'Disponible' : 'No disponible'}
         </span>
         {/* Title overlay */}
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-4 py-3">
+        <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/60 to-transparent px-4 py-3">
           <h2 className="text-white font-bold text-lg leading-tight">{sim.titulo}</h2>
         </div>
       </div>

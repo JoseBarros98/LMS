@@ -24,6 +24,7 @@ import Simuladores from './pages/Simuladores'
 import SimuladorResolver from './pages/SimuladorResolver'
 import SimuladorResultado from './pages/SimuladorResultado'
 import SimuladorRanking from './pages/SimuladorRanking'
+import Calendario from './pages/Calendario'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -139,6 +140,12 @@ createRoot(document.getElementById('root')).render(
           <Route path="/simuladores/:simuladorId/ranking" element={
             <PrivateRoute>
               <SimuladorRanking />
+            </PrivateRoute>
+          } />
+
+          <Route path="/calendario" element={
+            <PrivateRoute>
+              <Calendario />
             </PrivateRoute>
           } />
         </Routes>
