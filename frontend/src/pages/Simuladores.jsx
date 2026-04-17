@@ -33,6 +33,23 @@ function formatDateRange(apertura, cierre) {
   return `${fmt(apertura)} – ${fmt(cierre)}`
 }
 
+function normalizeSimuladorCoverUrl(url) {
+  if (!url) return null
+
+  try {
+    const parsed = new URL(url)
+    if (parsed.pathname.startsWith('/media/')) {
+      return parsed.pathname
+    }
+  } catch {
+    if (String(url).startsWith('/media/')) {
+      return url
+    }
+  }
+
+  return url
+}
+
 export default function Simuladores() {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -235,12 +252,17 @@ function SimuladorCard({
   onResolver, onVerHistorial, onEdit, onDelete, onGestionarPreguntas, onGestionarDisponibilidadUsuario, onVerDisponibilidades, onLoadIntentos,
 }) {
   const [loaded, setLoaded] = useState(false)
+  const [coverError, setCoverError] = useState(false)
 
   useEffect(() => {
     onLoadIntentos().then(() => setLoaded(true))
   }, [sim.id])
 
-  const portada = sim.imagen_portada_url_full || sim.imagen_portada_url
+  useEffect(() => {
+    setCoverError(false)
+  }, [sim.imagen_portada_url_full, sim.imagen_portada_url])
+
+  const portada = normalizeSimuladorCoverUrl(sim.imagen_portada_url_full || sim.imagen_portada_url)
 
   const disponible = sim.esta_disponible
 
@@ -248,8 +270,13 @@ function SimuladorCard({
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
       {/* Cover */}
       <div className={`relative h-44 bg-gradient-to-br ${getGradient(index)} flex items-center justify-center`}>
-        {portada ? (
-          <img src={portada} alt={sim.titulo} className="absolute inset-0 w-full h-full object-cover" />
+        {portada && !coverError ? (
+          <img
+            src={portada}
+            alt={sim.titulo}
+            className="absolute inset-0 w-full h-full object-cover"
+            onError={() => setCoverError(true)}
+          />
         ) : (
           <Activity size={52} className="text-white/50" />
         )}
