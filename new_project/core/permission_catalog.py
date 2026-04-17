@@ -20,9 +20,13 @@ PERMISSION_CATALOG = {
         'label': 'Dashboard',
         'actions': ['overview', 'academy', 'support', 'activity'],
     },
-    'dashboard': {
-        'label': 'Dashboard',
-        'actions': ['overview', 'academy', 'support', 'activity'],
+    'dashboard_student': {
+        'label': 'Dashboard Estudiante',
+        'actions': ['overview', 'academy', 'support', 'activity', 'courses_panel', 'quick_actions'],
+    },
+    'dashboard_admin': {
+        'label': 'Dashboard Administrador',
+        'actions': ['overview', 'academy', 'support', 'activity', 'charts', 'trends'],
     },
     'users': {
         'label': 'Usuarios',

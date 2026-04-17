@@ -6,6 +6,8 @@ import { dashboardApi } from '../api/dashboard'
 import Layout from '../components/Layout'
 import {
   HighlightCard,
+  InsightPanel,
+  SummaryMetricCard,
 } from '../components/dashboard/DashboardWidgets'
 import { useAuth } from '../context/AuthContext'
 import { usePermissions } from '../hooks/usePermissions'
@@ -94,22 +96,29 @@ export default function StudentDashboard() {
 
   const sectionVisibility = useMemo(() => {
     const fallback = {
-      overview: true,
-      academy: true,
-      support: true,
-      activity: true,
+      overview: false,
+      academy: false,
+      support: false,
+      activity: false,
+      courses_panel: false,
+      quick_actions: false,
     }
 
     const fromApi = dashboardData?.sections
     if (fromApi) {
-      return fromApi
+      return {
+        ...fallback,
+        ...fromApi,
+      }
     }
 
     const dashboardPermissions = {
-      overview: hasPermission('dashboard', 'overview'),
-      academy: hasPermission('dashboard', 'academy'),
-      support: hasPermission('dashboard', 'support'),
-      activity: hasPermission('dashboard', 'activity'),
+      overview: hasPermission('dashboard_student', 'overview') || hasPermission('dashboard', 'overview'),
+      academy: hasPermission('dashboard_student', 'academy') || hasPermission('dashboard', 'academy'),
+      support: hasPermission('dashboard_student', 'support') || hasPermission('dashboard', 'support'),
+      activity: hasPermission('dashboard_student', 'activity') || hasPermission('dashboard', 'activity'),
+      courses_panel: hasPermission('dashboard_student', 'courses_panel') || hasPermission('dashboard', 'academy'),
+      quick_actions: hasPermission('dashboard_student', 'quick_actions') || hasPermission('dashboard', 'overview'),
     }
 
     if (Object.values(dashboardPermissions).some(Boolean)) {
@@ -123,6 +132,9 @@ export default function StudentDashboard() {
     return <Navigate to="/admin/dashboard" replace />
   }
 
+  const overviewCards = dashboardData?.overview_cards || []
+  const academy = dashboardData?.academy
+  const support = dashboardData?.support
   const activity = dashboardData?.activity
 
   return (
@@ -150,7 +162,7 @@ export default function StudentDashboard() {
             </div>
 
             <div className="mt-8 flex flex-wrap gap-3">
-              {canAccessPage('cursos') && (
+              {sectionVisibility.quick_actions && canAccessPage('cursos') && (
                 <Link
                   to="/courses"
                   className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-700 transition"
@@ -158,7 +170,7 @@ export default function StudentDashboard() {
                   Ir a Cursos
                 </Link>
               )}
-              {canAccessPage('simuladores') && (
+              {sectionVisibility.quick_actions && canAccessPage('simuladores') && (
                 <Link
                   to="/simuladores"
                   className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-700 font-medium hover:bg-gray-50 transition"
@@ -183,6 +195,43 @@ export default function StudentDashboard() {
           </section>
         ) : (
           <>
+            {sectionVisibility.overview && overviewCards.length > 0 && (
+              <section className="space-y-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-800">Resumen personal</h2>
+                  <p className="text-sm text-gray-500">Indicadores de estudio y seguimiento de tus gestiones.</p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+                  {overviewCards.map((card) => (
+                    <SummaryMetricCard key={card.id} card={card} iconMap={iconMap} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <div className="grid grid-cols-1 2xl:grid-cols-2 gap-6">
+              {sectionVisibility.academy && academy && (
+                <InsightPanel
+                  title={academy.title}
+                  description={academy.description}
+                  stats={academy.stats}
+                  highlights={academy.highlights}
+                  iconMap={iconMap}
+                />
+              )}
+
+              {sectionVisibility.support && support && (
+                <InsightPanel
+                  title={support.title}
+                  description={support.description}
+                  stats={support.stats}
+                  highlights={support.highlights}
+                  iconMap={iconMap}
+                />
+              )}
+            </div>
+
             {sectionVisibility.activity && activity && (
               <section className="bg-white border border-gray-200 rounded-3xl p-6 shadow-sm space-y-5">
                 <div>
@@ -200,7 +249,7 @@ export default function StudentDashboard() {
           </>
         )}
 
-        {canAccessPage('cursos') && (
+        {sectionVisibility.courses_panel && canAccessPage('cursos') && (
           <section className="space-y-4">
             <div className="flex items-center justify-between gap-4">
               <div>

@@ -51,20 +51,28 @@ def get_dashboard_sections(user):
             'academy': True,
             'support': True,
             'activity': True,
+            'courses_panel': True,
+            'quick_actions': True,
         }
 
-    dashboard_actions = get_role_permissions(user).get('dashboard') or []
-    if not dashboard_actions:
-        return {
-            'overview': True,
-            'academy': True,
-            'support': True,
-            'activity': True,
-        }
+    permissions = get_role_permissions(user)
+
+    # Priorizar granularidad nueva para estudiantes y mantener compatibilidad con el recurso antiguo.
+    student_dashboard_actions = permissions.get('dashboard_student')
+    legacy_dashboard_actions = permissions.get('dashboard')
+
+    if isinstance(student_dashboard_actions, list):
+        dashboard_actions = student_dashboard_actions
+    elif isinstance(legacy_dashboard_actions, list):
+        dashboard_actions = legacy_dashboard_actions
+    else:
+        dashboard_actions = []
 
     return {
         'overview': 'overview' in dashboard_actions,
         'academy': 'academy' in dashboard_actions,
         'support': 'support' in dashboard_actions,
         'activity': 'activity' in dashboard_actions,
+        'courses_panel': 'courses_panel' in dashboard_actions or 'academy' in dashboard_actions,
+        'quick_actions': 'quick_actions' in dashboard_actions or 'overview' in dashboard_actions,
     }

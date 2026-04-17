@@ -27,6 +27,30 @@ export const PERMISSIONS_CATALOG = {
       { key: 'activity', label: 'Actividad Reciente' },
     ],
   },
+  dashboard_student: {
+    label: 'Dashboard Estudiante',
+    help: 'Controla secciones visibles del dashboard del estudiante.',
+    actions: [
+      { key: 'overview', label: 'Resumen Personal' },
+      { key: 'academy', label: 'Indicadores Academicos' },
+      { key: 'support', label: 'Indicadores de Soporte' },
+      { key: 'activity', label: 'Actividad Reciente' },
+      { key: 'courses_panel', label: 'Panel Mis Cursos' },
+      { key: 'quick_actions', label: 'Acciones Rapidas' },
+    ],
+  },
+  dashboard_admin: {
+    label: 'Dashboard Administrador',
+    help: 'Controla secciones del dashboard administrativo.',
+    actions: [
+      { key: 'overview', label: 'Resumen Ejecutivo' },
+      { key: 'academy', label: 'Bloque Academico' },
+      { key: 'support', label: 'Bloque Soporte' },
+      { key: 'activity', label: 'Actividad' },
+      { key: 'charts', label: 'Graficos' },
+      { key: 'trends', label: 'Tendencias' },
+    ],
+  },
   users: {
     label: 'Usuarios',
     actions: [
@@ -152,6 +176,8 @@ export const PERMISSIONS_CATALOG = {
 export const RESOURCE_ORDER = [
   'pages',
   'dashboard',
+  'dashboard_student',
+  'dashboard_admin',
   'users',
   'roles',
   'courses',
