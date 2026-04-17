@@ -28,6 +28,7 @@ export default function EnrollmentDetailModal({ enrollment, type, onClose, onUpd
   if (!enrollment) return null
 
   const title = type === 'ruta' ? enrollment.ruta_titulo : enrollment.curso_titulo
+  const isCoveredByRoute = type === 'curso' && Boolean(enrollment.incluido_en_ruta)
   const cuotas = useMemo(() => (Array.isArray(enrollment.cuotas)
     ? [...enrollment.cuotas].sort((a, b) => a.numero - b.numero)
     : []), [enrollment.cuotas])
@@ -142,7 +143,7 @@ export default function EnrollmentDetailModal({ enrollment, type, onClose, onUpd
             <div className="border border-gray-200 rounded-xl p-4 bg-gray-50">
               <h3 className="text-sm font-semibold text-gray-700 mb-3">Plan de cobro</h3>
               <div className="space-y-1 text-sm text-gray-700">
-                <p><span className="font-semibold">Plan:</span> {enrollment.plan_pago || '-'}</p>
+                <p><span className="font-semibold">Plan:</span> {isCoveredByRoute ? 'cubierto por ruta' : (enrollment.plan_pago || '-')}</p>
                 <p><span className="font-semibold">Monto total:</span> Bs {formatCurrency(enrollment.monto_total)}</p>
                 <p><span className="font-semibold">Cantidad de cuotas:</span> {enrollment.numero_cuotas || 0}</p>
                 <p><span className="font-semibold">Codigo acceso:</span> {enrollment.codigo_acceso || '-'}</p>
@@ -151,109 +152,115 @@ export default function EnrollmentDetailModal({ enrollment, type, onClose, onUpd
             </div>
           </div>
 
-          <div className="border border-gray-200 rounded-xl overflow-hidden">
-            <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
-              <h3 className="text-sm font-semibold text-gray-700">Plan de pagos generado</h3>
+          {isCoveredByRoute ? (
+            <div className="border border-emerald-200 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">
+              Este curso esta cubierto por la matricula de ruta. El cobro y los pagos se gestionan unicamente desde la inscripcion de la ruta.
             </div>
-
-            <div className="px-4 py-3 border-b border-gray-100 bg-white">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-                <select
-                  value={abonoCuotaId}
-                  onChange={(event) => setAbonoCuotaId(event.target.value)}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                >
-                  {cuotas.map((cuota) => (
-                    <option key={cuota.id} value={cuota.id}>
-                      Cuota #{cuota.numero}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={abonoMonto}
-                  onChange={(event) => setAbonoMonto(event.target.value)}
-                  placeholder="Monto abonado"
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                />
-                <input
-                  type="date"
-                  value={abonoFecha}
-                  onChange={(event) => setAbonoFecha(event.target.value)}
-                  className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                />
-                <button
-                  type="button"
-                  onClick={handleRegistrarAbono}
-                  disabled={savingAbono}
-                  className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-60"
-                >
-                  {savingAbono ? 'Registrando...' : 'Registrar abono'}
-                </button>
+          ) : (
+            <div className="border border-gray-200 rounded-xl overflow-hidden">
+              <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
+                <h3 className="text-sm font-semibold text-gray-700">Plan de pagos generado</h3>
               </div>
-            </div>
 
-            {cuotas.length === 0 ? (
-              <p className="p-4 text-sm text-gray-500">No hay cuotas registradas para esta matricula.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-100 bg-white">
-                      <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Nro cuota</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Monto</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Pagado</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Saldo</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Fecha vencimiento</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Fecha pago</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Estado</th>
-                      <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Accion</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
+              <div className="px-4 py-3 border-b border-gray-100 bg-white">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                  <select
+                    value={abonoCuotaId}
+                    onChange={(event) => setAbonoCuotaId(event.target.value)}
+                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  >
                     {cuotas.map((cuota) => (
-                      <tr key={cuota.id}>
-                        <td className="px-4 py-2.5">{cuota.numero}</td>
-                        <td className="px-4 py-2.5">Bs {formatCurrency(cuota.monto)}</td>
-                        <td className="px-4 py-2.5">
-                          Bs {formatCurrency(cuota.monto_pagado)}
-                        </td>
-                        <td className="px-4 py-2.5">Bs {formatCurrency(cuota.saldo_pendiente)}</td>
-                        <td className="px-4 py-2.5">
-                          <input
-                            type="date"
-                            value={editingRows[cuota.id]?.fecha_pago || ''}
-                            onChange={(event) => handleRowChange(cuota.id, 'fecha_pago', event.target.value)}
-                            className="px-2 py-1 border border-gray-200 rounded text-xs"
-                          />
-                        </td>
-                        <td className="px-4 py-2.5">
-                          {formatDate(cuota.fecha_pago_real)}
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <span className={`px-2 py-1 rounded-full text-xs ${cuota.estado === 'pagado' ? 'bg-emerald-100 text-emerald-700' : cuota.estado === 'parcial' ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-700'}`}>
-                            {cuota.estado}
-                          </span>
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <button
-                            type="button"
-                            onClick={() => saveCuota(cuota.id)}
-                            disabled={savingRowId === cuota.id}
-                            className="px-2.5 py-1 rounded bg-slate-900 text-white text-xs hover:bg-slate-800 disabled:opacity-60"
-                          >
-                            {savingRowId === cuota.id ? 'Guardando...' : 'Guardar'}
-                          </button>
-                        </td>
-                      </tr>
+                      <option key={cuota.id} value={cuota.id}>
+                        Cuota #{cuota.numero}
+                      </option>
                     ))}
-                  </tbody>
-                </table>
+                  </select>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={abonoMonto}
+                    onChange={(event) => setAbonoMonto(event.target.value)}
+                    placeholder="Monto abonado"
+                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  />
+                  <input
+                    type="date"
+                    value={abonoFecha}
+                    onChange={(event) => setAbonoFecha(event.target.value)}
+                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRegistrarAbono}
+                    disabled={savingAbono}
+                    className="px-3 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-60"
+                  >
+                    {savingAbono ? 'Registrando...' : 'Registrar abono'}
+                  </button>
+                </div>
               </div>
-            )}
-          </div>
+
+              {cuotas.length === 0 ? (
+                <p className="p-4 text-sm text-gray-500">No hay cuotas registradas para esta matricula.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-100 bg-white">
+                        <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Nro cuota</th>
+                        <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Monto</th>
+                        <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Pagado</th>
+                        <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Saldo</th>
+                        <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Fecha vencimiento</th>
+                        <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Fecha pago</th>
+                        <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Estado</th>
+                        <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Accion</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {cuotas.map((cuota) => (
+                        <tr key={cuota.id}>
+                          <td className="px-4 py-2.5">{cuota.numero}</td>
+                          <td className="px-4 py-2.5">Bs {formatCurrency(cuota.monto)}</td>
+                          <td className="px-4 py-2.5">
+                            Bs {formatCurrency(cuota.monto_pagado)}
+                          </td>
+                          <td className="px-4 py-2.5">Bs {formatCurrency(cuota.saldo_pendiente)}</td>
+                          <td className="px-4 py-2.5">
+                            <input
+                              type="date"
+                              value={editingRows[cuota.id]?.fecha_pago || ''}
+                              onChange={(event) => handleRowChange(cuota.id, 'fecha_pago', event.target.value)}
+                              className="px-2 py-1 border border-gray-200 rounded text-xs"
+                            />
+                          </td>
+                          <td className="px-4 py-2.5">
+                            {formatDate(cuota.fecha_pago_real)}
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <span className={`px-2 py-1 rounded-full text-xs ${cuota.estado === 'pagado' ? 'bg-emerald-100 text-emerald-700' : cuota.estado === 'parcial' ? 'bg-sky-100 text-sky-700' : 'bg-amber-100 text-amber-700'}`}>
+                              {cuota.estado}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5">
+                            <button
+                              type="button"
+                              onClick={() => saveCuota(cuota.id)}
+                              disabled={savingRowId === cuota.id}
+                              className="px-2.5 py-1 rounded bg-slate-900 text-white text-xs hover:bg-slate-800 disabled:opacity-60"
+                            >
+                              {savingRowId === cuota.id ? 'Guardando...' : 'Guardar'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

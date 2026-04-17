@@ -546,8 +546,6 @@ class CustomTokenObtainPairView(TokenObtainPairView):
 @permission_classes([IsAuthenticated])
 def me(request):
     if request.method == 'GET':
-        if not has_role_permission(request.user, 'users', 'update_profile') and not is_admin_user(request.user):
-            return Response({'detail': 'No tienes permisos para ver tu perfil.'}, status=status.HTTP_403_FORBIDDEN)
         serializer = UserSerializer(request.user)
         return Response(serializer.data)
 

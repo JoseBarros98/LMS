@@ -17,6 +17,7 @@ from .models import ComentarioCurso, CuotaPagoMatricula, Curso, Leccion, Matricu
 from .serializers import (
     ComentarioCursoSerializer,
     CuotaPagoControlSerializer,
+    EnrollExistingStudentSerializer,
     CreateStudentEnrollmentSerializer,
     CursoDetalleSerializer,
     CursoSerializer,
@@ -165,6 +166,40 @@ class RutaViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED,
         )
 
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def matricular_estudiante_existente(self, request, pk=None):
+        if not is_admin_user(request.user):
+            return Response({'detail': 'Solo los administradores pueden realizar esta accion.'}, status=status.HTTP_403_FORBIDDEN)
+
+        ruta = self.get_object()
+        serializer = EnrollExistingStudentSerializer(
+            data=request.data,
+            context={'enrollment_type': 'ruta'},
+        )
+        serializer.is_valid(raise_exception=True)
+        validated = serializer.validated_data
+        user = validated['user']
+
+        if MatriculaRuta.objects.filter(user=user, ruta=ruta).exists():
+            return Response({'detail': 'El estudiante ya esta matriculado en esta ruta.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        enrollment_payload = {
+            'user': user.id,
+            'ruta': ruta.id,
+            **extract_enrollment_fields(validated),
+        }
+        matricula_serializer = MatriculaRutaSerializer(data=enrollment_payload, context={'request': request})
+        matricula_serializer.is_valid(raise_exception=True)
+        matricula = matricula_serializer.save(created_by=request.user)
+
+        return Response(
+            {
+                'user': UserSerializer(user, context={'request': request}).data,
+                'matricula': MatriculaRutaSerializer(matricula, context={'request': request}).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
 
 class CursoViewSet(viewsets.ModelViewSet):
     serializer_class = CursoSerializer
@@ -271,6 +306,40 @@ class CursoViewSet(viewsets.ModelViewSet):
             matricula_serializer = MatriculaCursoSerializer(data=enrollment_payload, context={'request': request})
             matricula_serializer.is_valid(raise_exception=True)
             matricula = matricula_serializer.save(created_by=request.user)
+
+        return Response(
+            {
+                'user': UserSerializer(user, context={'request': request}).data,
+                'matricula': MatriculaCursoSerializer(matricula, context={'request': request}).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def matricular_estudiante_existente(self, request, pk=None):
+        if not is_admin_user(request.user):
+            return Response({'detail': 'Solo los administradores pueden realizar esta accion.'}, status=status.HTTP_403_FORBIDDEN)
+
+        curso = self.get_object()
+        serializer = EnrollExistingStudentSerializer(
+            data=request.data,
+            context={'enrollment_type': 'curso'},
+        )
+        serializer.is_valid(raise_exception=True)
+        validated = serializer.validated_data
+        user = validated['user']
+
+        if MatriculaCurso.objects.filter(user=user, curso=curso).exists():
+            return Response({'detail': 'El estudiante ya esta matriculado en este curso.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        enrollment_payload = {
+            'user': user.id,
+            'curso': curso.id,
+            **extract_enrollment_fields(validated),
+        }
+        matricula_serializer = MatriculaCursoSerializer(data=enrollment_payload, context={'request': request})
+        matricula_serializer.is_valid(raise_exception=True)
+        matricula = matricula_serializer.save(created_by=request.user)
 
         return Response(
             {

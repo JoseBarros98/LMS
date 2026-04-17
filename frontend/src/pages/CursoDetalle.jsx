@@ -298,8 +298,13 @@ export default function CursoDetalle() {
     try {
       setSubmittingStudent(true)
       setStudentEnrollmentError('')
-      await cursosApi.createStudentAndEnrollInCurso(id, form)
-      showSuccess('Estudiante creado y matriculado en el curso.')
+      if (form.mode === 'existing') {
+        await cursosApi.enrollExistingStudentInCurso(id, form)
+        showSuccess('Estudiante existente matriculado en el curso.')
+      } else {
+        await cursosApi.createStudentAndEnrollInCurso(id, form)
+        showSuccess('Estudiante creado y matriculado en el curso.')
+      }
       setStudentModalOpen(false)
       await loadData()
     } catch (error) {
@@ -1689,9 +1694,9 @@ export default function CursoDetalle() {
 
       {studentModalOpen && isAdmin && (
         <StudentEnrollmentModal
-          title="Nuevo estudiante para este curso"
-          subtitle={`Se creara con rol Estudiante y quedara matriculado en ${curso.titulo}.`}
-          submitLabel="Crear y matricular"
+          title="Matricular estudiante en este curso"
+          subtitle={`Puedes crear uno nuevo o usar uno existente para matricularlo en ${curso.titulo}.`}
+          submitLabel="Guardar matricula"
           loading={submittingStudent}
           error={studentEnrollmentError}
           enrollmentType="curso"

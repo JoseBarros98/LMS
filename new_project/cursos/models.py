@@ -370,6 +370,7 @@ class MatriculaCurso(models.Model):
     plan_pago = models.CharField(max_length=10, choices=PLAN_PAGO_CHOICES, default=PLAN_CONTADO)
     numero_cuotas = models.PositiveSmallIntegerField(default=1)
     monto_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    incluido_en_ruta = models.BooleanField(default=False)
     fecha_inicio = models.DateField(blank=True, null=True)
     fecha_fin = models.DateField(blank=True, null=True)
     activa = models.BooleanField(default=True)

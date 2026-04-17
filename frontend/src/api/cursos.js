@@ -110,8 +110,21 @@ export const cursosApi = {
     return api.post(`/rutas/${rutaId}/crear_estudiante_matriculado/`, sanitizePayload(data))
   },
 
+  enrollExistingStudentInRuta: (rutaId, data) => {
+    return api.post(`/rutas/${rutaId}/matricular_estudiante_existente/`, sanitizePayload(data))
+  },
+
   createStudentAndEnrollInCurso: (cursoId, data) => {
     return api.post(`/cursos/${cursoId}/crear_estudiante_matriculado/`, sanitizePayload(data))
+  },
+
+  enrollExistingStudentInCurso: (cursoId, data) => {
+    return api.post(`/cursos/${cursoId}/matricular_estudiante_existente/`, sanitizePayload(data))
+  },
+
+  getUsersForEnrollment: async () => {
+    const response = await api.get('/users/')
+    return response.data
   },
 
   getSecciones: async (cursoId) => {

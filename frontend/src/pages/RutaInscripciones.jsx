@@ -126,8 +126,13 @@ export default function RutaInscripciones() {
     try {
       setSubmittingRutaEnrollment(true)
       setRutaEnrollmentError('')
-      await cursosApi.createStudentAndEnrollInRuta(rutaEnrollmentTarget.id, form)
-      showSuccess('Estudiante creado y matriculado en la ruta.')
+      if (form.mode === 'existing') {
+        await cursosApi.enrollExistingStudentInRuta(rutaEnrollmentTarget.id, form)
+        showSuccess('Estudiante existente matriculado en la ruta.')
+      } else {
+        await cursosApi.createStudentAndEnrollInRuta(rutaEnrollmentTarget.id, form)
+        showSuccess('Estudiante creado y matriculado en la ruta.')
+      }
       setRutaEnrollmentTarget(null)
       await loadData()
     } catch (error) {
@@ -364,9 +369,9 @@ export default function RutaInscripciones() {
 
         {rutaEnrollmentTarget && isAdmin && (
           <StudentEnrollmentModal
-            title="Nuevo estudiante para esta ruta"
-            subtitle={`Se creara con rol Estudiante y quedara matriculado en ${rutaEnrollmentTarget.titulo}.`}
-            submitLabel="Crear y matricular"
+            title="Matricular estudiante en esta ruta"
+            subtitle={`Puedes crear uno nuevo o usar uno existente para matricularlo en ${rutaEnrollmentTarget.titulo}.`}
+            submitLabel="Guardar matricula"
             loading={submittingRutaEnrollment}
             error={rutaEnrollmentError}
             enrollmentType="ruta"
