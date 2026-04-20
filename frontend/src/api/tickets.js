@@ -79,8 +79,20 @@ export const ticketsApi = {
   deleteTicket: (ticketId) => api.delete(`/tickets/${ticketId}/`),
   
   // Responder a un ticket
-  respondTicket: (ticketId, message) => 
-    api.post(`/tickets/${ticketId}/respond/`, { message }),
+  respondTicket: (ticketId, message, attachment) => {
+    const formData = new FormData()
+    formData.append('message', message)
+
+    if (attachment instanceof File) {
+      formData.append('attachment', attachment)
+    }
+
+    return api.post(`/tickets/${ticketId}/respond/`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+  },
   
   // Obtener respuestas de un ticket
   getTicketResponses: (ticketId) => 

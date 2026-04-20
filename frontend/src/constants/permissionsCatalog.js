@@ -132,6 +132,7 @@ export const PERMISSIONS_CATALOG = {
       { key: 'read_own', label: 'Ver Propios' },
       { key: 'update_own', label: 'Editar Propios' },
       { key: 'respond', label: 'Responder' },
+      { key: 'change_status', label: 'Cambiar Estado' },
     ],
   },
   notifications: {

@@ -29,7 +29,7 @@ class TicketResponseSerializer(serializers.ModelSerializer):
         model = TicketResponse
         fields = [
             'id', 'ticket', 'user', 'user_name', 'user_email', 
-            'message', 'is_admin_response', 'created_at'
+            'message', 'attachment', 'is_admin_response', 'created_at'
         ]
         read_only_fields = ['created_at']
 
@@ -126,7 +126,7 @@ class TicketResponseCreateSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = TicketResponse
-        fields = ['message']
+        fields = ['message', 'attachment']
     
     def create(self, validated_data):
         ticket_id = self.context['ticket_id']

@@ -73,6 +73,50 @@ def notify_ticket_status_changed(ticket, old_status, new_status, actor):
     )
 
 
+def notify_ticket_responded(ticket, response, actor):
+    recipients = []
+    recipient_ids = set()
+
+    def add_recipient(user):
+        if not user:
+            return
+        if actor and user.id == actor.id:
+            return
+        if user.id in recipient_ids:
+            return
+        recipient_ids.add(user.id)
+        recipients.append(user)
+
+    # Siempre notificar al creador del ticket (si no es quien responde)
+    add_recipient(ticket.user)
+
+    # Notificar al admin asignado, si existe
+    add_recipient(ticket.assigned_to)
+
+    # Si responde el creador del ticket, avisar tambien a administradores
+    if actor and ticket.user and actor.id == ticket.user.id:
+        for admin_user in _admin_users():
+            add_recipient(admin_user)
+
+    notifications = []
+    actor_name = actor.name if actor else 'Un usuario'
+
+    for recipient in recipients:
+        notifications.append(
+            Notification(
+                recipient=recipient,
+                ticket=ticket,
+                notification_type=Notification.TYPE_TICKET_RESPONSE,
+                status_tag=Notification.STATUS_INFO,
+                title='Nueva respuesta en ticket',
+                message=f'{actor_name} respondio el ticket #{ticket.id} "{ticket.title}".',
+            )
+        )
+
+    if notifications:
+        Notification.objects.bulk_create(notifications)
+
+
 def notify_manual(recipients, title, message, status_tag=Notification.STATUS_SYSTEM):
     notifications = [
         Notification(

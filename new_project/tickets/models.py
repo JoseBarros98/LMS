@@ -184,6 +184,12 @@ class TicketResponse(models.Model):
         verbose_name="Usuario"
     )
     message = models.TextField(verbose_name="Mensaje")
+    attachment = models.FileField(
+        upload_to='tickets/responses/%Y/%m/',
+        null=True,
+        blank=True,
+        verbose_name="Archivo adjunto"
+    )
     is_admin_response = models.BooleanField(
         default=False, 
         verbose_name="Respuesta de administrador"
@@ -202,6 +208,7 @@ class TicketResponse(models.Model):
 class Notification(models.Model):
     TYPE_TICKET_CREATED = 'ticket_created'
     TYPE_TICKET_STATUS_CHANGED = 'ticket_status_changed'
+    TYPE_TICKET_RESPONSE = 'ticket_response'
     TYPE_MANUAL = 'manual'
     TYPE_ENROLLMENT_EXPIRY = 'enrollment_expiry'
     TYPE_INSTALLMENT_DUE = 'installment_due'
@@ -209,6 +216,7 @@ class Notification(models.Model):
     TYPE_CHOICES = [
         (TYPE_TICKET_CREATED, 'Ticket creado'),
         (TYPE_TICKET_STATUS_CHANGED, 'Estado de ticket cambiado'),
+        (TYPE_TICKET_RESPONSE, 'Respuesta de ticket'),
         (TYPE_MANUAL, 'Notificacion manual'),
         (TYPE_ENROLLMENT_EXPIRY, 'Matricula por vencer'),
         (TYPE_INSTALLMENT_DUE, 'Cuota proxima a vencer'),

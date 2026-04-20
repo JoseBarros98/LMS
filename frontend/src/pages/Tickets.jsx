@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import Layout from '../components/Layout'
@@ -18,14 +18,15 @@ import {
   Pencil,
   Trash2,
   Paperclip,
-  X
+  X,
+  Send,
 } from 'lucide-react'
 
 export default function Tickets() {
   const { user } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
-  const { canCreate, canRead, canReadOwn, canUpdate, canUpdateOwn, canDelete, canDeleteOwn } = usePermissions()
+  const { canCreate, canRead, canReadOwn, canUpdate, canUpdateOwn, canDelete, canDeleteOwn, hasPermission } = usePermissions()
   const [tickets, setTickets] = useState([])
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
@@ -33,6 +34,13 @@ export default function Tickets() {
   const [ticketEdit, setTicketEdit] = useState(null)
   const [ticketDetail, setTicketDetail] = useState(null)
   const [updatingStatusTicketId, setUpdatingStatusTicketId] = useState(null)
+  const [responses, setResponses] = useState([])
+  const [loadingResponses, setLoadingResponses] = useState(false)
+  const [responseText, setResponseText] = useState('')
+  const [responseAttachment, setResponseAttachment] = useState(null)
+  const [previewAttachment, setPreviewAttachment] = useState(null)
+  const [submittingResponse, setSubmittingResponse] = useState(false)
+  const responsesEndRef = useRef(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
   const [filterCategory, setFilterCategory] = useState('all')
@@ -46,13 +54,21 @@ export default function Tickets() {
   const canDeleteTicketOwn = canDeleteOwn('tickets')
 
   const canCreateTicket = canCreate('tickets')
-  const canChangeStatus = canEditTicketAny
+  const canChangeStatus = hasPermission('tickets', 'change_status') || canEditTicketAny
   const canReadTickets = canReadTicketAny || canReadTicketOwn
   const isTicketLocked = (ticket) => ['resolved', 'closed'].includes(ticket?.status)
   const isTicketOwner = (ticket) => Number(ticket?.user) === Number(user?.id)
 
   const canEditTicketRow = (ticket) => canEditTicketAny || (canEditTicketOwn && isTicketOwner(ticket))
   const canDeleteTicketRow = (ticket) => canDeleteTicketAny || (canDeleteTicketOwn && isTicketOwner(ticket))
+  const canRespond = (ticket) => !isTicketLocked(ticket) && (hasPermission('tickets', 'respond') || isTicketOwner(ticket))
+
+  const openAttachmentPreview = (url, title = 'Adjunto') => {
+    const type = getAttachmentType(url)
+    if (!url || (type !== 'image' && type !== 'pdf')) return
+
+    setPreviewAttachment({ url, type, title })
+  }
 
   const STATUS_OPTIONS = [
     { value: 'open', label: 'Abierto' },
@@ -65,6 +81,37 @@ export default function Tickets() {
     loadTickets()
     loadCategories()
   }, [])
+
+  useEffect(() => {
+    if (!ticketDetail) {
+      setResponses([])
+      setResponseText('')
+      setResponseAttachment(null)
+      return
+    }
+    loadResponses(ticketDetail.id)
+  }, [ticketDetail?.id])
+
+  useEffect(() => {
+    if (responsesEndRef.current) {
+      responsesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [responses])
+
+  useEffect(() => {
+    if (!previewAttachment) return
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setPreviewAttachment(null)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [previewAttachment])
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -86,6 +133,35 @@ export default function Tickets() {
       { replace: true }
     )
   }, [location.pathname, location.search, tickets, navigate])
+
+  const loadResponses = async (ticketId) => {
+    try {
+      setLoadingResponses(true)
+      const res = await ticketsApi.getTicketResponses(ticketId)
+      setResponses(Array.isArray(res.data) ? res.data : [])
+    } catch {
+      setResponses([])
+    } finally {
+      setLoadingResponses(false)
+    }
+  }
+
+  const handleSubmitResponse = async () => {
+    if (!responseText.trim() || !ticketDetail) return
+    try {
+      setSubmittingResponse(true)
+      await ticketsApi.respondTicket(ticketDetail.id, responseText.trim(), responseAttachment)
+      setResponseText('')
+      setResponseAttachment(null)
+      await loadResponses(ticketDetail.id)
+      await loadTickets()
+      showSuccess('Respuesta enviada.')
+    } catch (error) {
+      showError(getApiErrorMessage(error, 'No se pudo enviar la respuesta.'))
+    } finally {
+      setSubmittingResponse(false)
+    }
+  }
 
   const loadTickets = async () => {
     try {
@@ -279,7 +355,7 @@ export default function Tickets() {
     setTicketEdit(null)
   }
 
-  const canShowActions = canReadTickets && (canEditTicketAny || canEditTicketOwn || canDeleteTicketAny || canDeleteTicketOwn)
+  const canShowActions = canReadTickets
 
   return (
     <Layout>
@@ -482,6 +558,17 @@ export default function Tickets() {
                                 <Eye size={14} />
                                 Detalle
                               </button>
+                              {canRespond(ticket) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenDetail(ticket)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition"
+                                  title="Responder"
+                                >
+                                  <Send size={14} />
+                                  Responder
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => handleViewTicket(ticket)}
@@ -597,9 +684,152 @@ export default function Tickets() {
                   <p className="text-xs font-semibold text-gray-500 uppercase">Descripcion</p>
                   <p className="mt-1 whitespace-pre-wrap text-gray-700">{ticketDetail.description}</p>
                 </div>
+                <div className="border-t border-gray-100 pt-4">
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-3">
+                    Respuestas ({responses.length})
+                  </p>
 
-                <div className="text-gray-600">
-                  Respuestas: <span className="font-semibold">{ticketDetail.responses_count || 0}</span>
+                  {loadingResponses ? (
+                    <div className="flex justify-center py-4">
+                      <div className="animate-spin rounded-full h-6 w-6 border-2 border-blue-500 border-t-transparent" />
+                    </div>
+                  ) : responses.length === 0 ? (
+                    <p className="text-sm text-gray-400 text-center py-3">Sin respuestas aún.</p>
+                  ) : (
+                    <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                      {responses.map((resp) => {
+                        const isMine = Number(resp.user) === Number(user?.id)
+                        return (
+                          <div
+                            key={resp.id}
+                            className={`flex flex-col gap-1 ${isMine ? 'items-end' : 'items-start'}`}
+                          >
+                            <div className="flex items-center gap-2 text-xs text-gray-400">
+                              {resp.is_admin_response && (
+                                <span className="bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded font-semibold">Admin</span>
+                              )}
+                              <span className="font-medium text-gray-500">{resp.user_name}</span>
+                              <span>{new Date(resp.created_at).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                            </div>
+                            <div
+                              className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap ${
+                                isMine
+                                  ? 'bg-blue-500 text-white rounded-br-sm'
+                                  : resp.is_admin_response
+                                  ? 'bg-indigo-50 border border-indigo-100 text-gray-800 rounded-bl-sm'
+                                  : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                              }`}
+                            >
+                              {resp.message}
+                              {resp.attachment && (
+                                <div className="mt-2 space-y-2">
+                                  {getAttachmentType(resp.attachment) === 'image' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => openAttachmentPreview(resp.attachment, `Adjunto de ${resp.user_name}`)}
+                                      className="block"
+                                    >
+                                      <img
+                                        src={resp.attachment}
+                                        alt="Adjunto de respuesta"
+                                        className="rounded-lg border border-gray-200 max-h-56 w-auto object-contain bg-white"
+                                      />
+                                    </button>
+                                  )}
+
+                                  {getAttachmentType(resp.attachment) === 'pdf' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => openAttachmentPreview(resp.attachment, `PDF de ${resp.user_name}`)}
+                                      className="h-56 w-full max-w-md rounded-lg overflow-hidden border border-gray-200 bg-white"
+                                    >
+                                      <iframe
+                                        src={resp.attachment}
+                                        title={`Adjunto PDF respuesta ${resp.id}`}
+                                        className="w-full h-full"
+                                      />
+                                    </button>
+                                  )}
+
+                                  <a
+                                    href={resp.attachment}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className={`underline font-medium ${isMine ? 'text-blue-100' : 'text-blue-600'}`}
+                                  >
+                                    {getAttachmentType(resp.attachment) === 'other'
+                                      ? 'Descargar archivo adjunto'
+                                      : 'Abrir adjunto en pestaña nueva'}
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                      <div ref={responsesEndRef} />
+                    </div>
+                  )}
+
+                  {canRespond(ticketDetail) && (
+                    <div className="mt-3 flex gap-2 items-end">
+                      <div className="flex-1 space-y-2">
+                        <textarea
+                          value={responseText}
+                          onChange={(e) => setResponseText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault()
+                              handleSubmitResponse()
+                            }
+                          }}
+                          placeholder="Escribe una respuesta… (Enter para enviar, Shift+Enter para nueva línea)"
+                          rows={2}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-300"
+                        />
+                        <div className="flex items-center justify-between gap-2">
+                          <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 text-gray-600 text-xs hover:bg-gray-50 cursor-pointer transition">
+                            <Paperclip size={13} />
+                            Adjuntar archivo
+                            <input
+                              type="file"
+                              className="hidden"
+                              onChange={(event) => {
+                                const file = event.target.files?.[0] || null
+                                setResponseAttachment(file)
+                              }}
+                            />
+                          </label>
+                          {responseAttachment && (
+                            <div className="flex items-center gap-2 text-xs text-gray-500">
+                              <span className="truncate max-w-52">{responseAttachment.name}</span>
+                              <button
+                                type="button"
+                                onClick={() => setResponseAttachment(null)}
+                                className="p-1 rounded-md hover:bg-gray-100 text-gray-500"
+                                title="Quitar adjunto"
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleSubmitResponse}
+                        disabled={!responseText.trim() || submittingResponse}
+                        className="p-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-50 disabled:cursor-not-allowed transition"
+                        title="Enviar respuesta"
+                      >
+                        {submittingResponse ? (
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        ) : (
+                          <Send size={16} />
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -607,23 +837,31 @@ export default function Tickets() {
                   {ticketDetail.attachment ? (
                     <div className="mt-2 space-y-3">
                       {getAttachmentType(ticketDetail.attachment) === 'image' && (
-                        <div className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50">
+                        <button
+                          type="button"
+                          onClick={() => openAttachmentPreview(ticketDetail.attachment, `Adjunto del ticket #${ticketDetail.id}`)}
+                          className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50"
+                        >
                           <img
                             src={ticketDetail.attachment}
                             alt="Adjunto del ticket"
                             className="w-full h-auto max-h-105 object-contain"
                           />
-                        </div>
+                        </button>
                       )}
 
                       {getAttachmentType(ticketDetail.attachment) === 'pdf' && (
-                        <div className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50 h-105">
+                        <button
+                          type="button"
+                          onClick={() => openAttachmentPreview(ticketDetail.attachment, `PDF del ticket #${ticketDetail.id}`)}
+                          className="border border-gray-200 rounded-xl overflow-hidden bg-gray-50 h-105 w-full"
+                        >
                           <iframe
                             src={ticketDetail.attachment}
                             title="Vista previa del PDF"
                             className="w-full h-full"
                           />
-                        </div>
+                        </button>
                       )}
 
                       {getAttachmentType(ticketDetail.attachment) === 'other' && (
@@ -646,6 +884,47 @@ export default function Tickets() {
                     <p className="mt-1 text-gray-400">Sin adjunto</p>
                   )}
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {previewAttachment && (
+          <div
+            className="fixed inset-0 z-60 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) {
+                setPreviewAttachment(null)
+              }
+            }}
+          >
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
+                <h3 className="text-sm md:text-base font-semibold text-gray-800 truncate pr-4">{previewAttachment.title}</h3>
+                <button
+                  type="button"
+                  onClick={() => setPreviewAttachment(null)}
+                  className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition"
+                  title="Cerrar"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="p-4 bg-gray-50 max-h-[calc(90vh-64px)] overflow-auto">
+                {previewAttachment.type === 'image' ? (
+                  <img
+                    src={previewAttachment.url}
+                    alt={previewAttachment.title}
+                    className="mx-auto max-h-[75vh] w-auto object-contain rounded-lg border border-gray-200 bg-white"
+                  />
+                ) : (
+                  <iframe
+                    src={previewAttachment.url}
+                    title={previewAttachment.title}
+                    className="w-full h-[75vh] rounded-lg border border-gray-200 bg-white"
+                  />
+                )}
               </div>
             </div>
           </div>

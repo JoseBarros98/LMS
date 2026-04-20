@@ -55,7 +55,7 @@ PERMISSION_CATALOG = {
     },
     'tickets': {
         'label': 'Tickets',
-        'actions': ['read', 'create', 'update', 'delete', 'read_own', 'update_own', 'respond'],
+        'actions': ['read', 'create', 'update', 'delete', 'read_own', 'update_own', 'respond', 'change_status'],
     },
     'notifications': {
         'label': 'Notificaciones',

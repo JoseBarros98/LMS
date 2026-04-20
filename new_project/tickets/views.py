@@ -17,6 +17,7 @@ from .services import (
     notify_installment_due,
     notify_manual,
     notify_ticket_created,
+    notify_ticket_responded,
     notify_ticket_status_changed,
 )
 
@@ -133,8 +134,8 @@ class TicketViewSet(viewsets.ModelViewSet):
         'destroy': ['delete', 'delete_own'],
         'respond': 'respond',
         'responses': ['read', 'read_own'],
-        'assign': 'update',
-        'close': 'update',
+        'assign': ['change_status', 'update'],
+        'close': ['change_status', 'update'],
     }
     
     def get_queryset(self):
@@ -209,6 +210,7 @@ class TicketViewSet(viewsets.ModelViewSet):
         
         if serializer.is_valid():
             response = serializer.save()
+            notify_ticket_responded(ticket, response, request.user)
             
             # Si es respuesta de admin y el ticket estaba abierto, cambiar estado
             if response.is_admin_response and ticket.status == 'open' and has_role_permission(request.user, 'tickets', 'update'):
