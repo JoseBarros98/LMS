@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import Layout from '../components/Layout'
 import { ticketsApi } from '../api/tickets'
-import { showConfirm } from '../utils/toast'
+import { showConfirm, showSuccess, showError } from '../utils/toast'
 import CategoryModal from '../components/CategoryModal'
 import { 
   Plus, 
@@ -55,6 +55,7 @@ export default function Categorias() {
         await ticketsApi.createCategory(formData)
       }
 
+      showSuccess(categoryEdit ? 'Categoría actualizada correctamente.' : 'Categoría creada correctamente.')
       setModalOpen(false)
       setCategoryEdit(null)
       await loadCategories()
@@ -91,8 +92,11 @@ export default function Categorias() {
 
     try {
       await ticketsApi.updateCategory(categoryId, { status: nextStatus })
+      const successLabel = nextStatus === 'active' ? 'reactivada' : 'desactivada'
+      showSuccess(`Categoría ${successLabel} correctamente.`)
       loadCategories()
     } catch {
+      showError(`No se pudo ${actionLabel} la categoría.`)
     }
   }
 
@@ -165,72 +169,78 @@ export default function Categorias() {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {categories.map(category => (
-              <div key={category.id} className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-lg transition">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <div 
-                      className="w-8 h-8 rounded-lg flex items-center justify-center"
-                      style={{ backgroundColor: `${category.color}20` }}
-                    >
-                      <span style={{ color: category.color }}>📋</span>
-                    </div>
-                    <span className="text-sm font-medium text-gray-700">#{category.order}</span>
-                  </div>
-                  
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleEdit(category)}
-                      className="p-1.5 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition"
-                      title="Editar"
-                    >
-                      <Edit size={14} />
-                    </button>
-                    
-                    <button
-                      onClick={() => handleDelete(category.id)}
-                      className={`p-1.5 rounded-lg transition ${
-                        category.status === 'active'
-                          ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                          : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                      }`}
-                      title={getNextStatusActionLabel(category)}
-                    >
-                      <Power size={14} />
-                    </button>
-                  </div>
-                </div>
+          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-200">
+                <thead className="bg-gray-50">
+                  <tr className="text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                    <th className="px-4 py-3">Orden</th>
+                    <th className="px-4 py-3">Nombre</th>
+                    <th className="px-4 py-3">Descripcion</th>
+                    <th className="px-4 py-3">Color</th>
+                    <th className="px-4 py-3">Estado</th>
+                    <th className="px-4 py-3 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categories.map((category) => (
+                    <tr key={category.id} className="border-t border-gray-100 text-sm text-gray-700 hover:bg-gray-50/60">
+                      <td className="px-4 py-3 align-top font-medium text-gray-800">#{category.order}</td>
+                      <td className="px-4 py-3 align-top">
+                        <div className="font-semibold text-gray-800">{category.name}</div>
+                      </td>
+                      <td className="px-4 py-3 align-top text-gray-600 max-w-md">
+                        <p className="line-clamp-2">{category.description || '-'}</p>
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <div className="flex items-center gap-2">
+                          <Palette size={14} className="text-gray-400" />
+                          <span
+                            className="px-2 py-1 rounded text-xs font-medium"
+                            style={{
+                              backgroundColor: `${category.color}20`,
+                              color: category.color,
+                            }}
+                          >
+                            {category.color}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${getCategoryStatusClasses(category)}`}>
+                          {getCategoryStatusLabel(category)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleEdit(category)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border border-blue-200 text-blue-600 hover:bg-blue-50 transition"
+                            title="Editar"
+                          >
+                            <Edit size={14} />
+                            Editar
+                          </button>
 
-                {/* Contenido */}
-                <div className="space-y-3">
-                  <div>
-                    <h3 className="font-semibold text-gray-800 text-lg">{category.name}</h3>
-                    <p className="text-sm text-gray-600 mt-1">{category.description}</p>
-                  </div>
-                  
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="flex items-center gap-1">
-                      <Palette size={14} className="text-gray-400" />
-                      <span 
-                        className="px-2 py-1 rounded text-xs font-medium"
-                        style={{ 
-                          backgroundColor: `${category.color}20`, 
-                          color: category.color 
-                        }}
-                      >
-                        {category.color}
-                      </span>
-                    </div>
-                    
-                    <div className={`px-2 py-1 rounded text-xs font-medium ${getCategoryStatusClasses(category)}`}>
-                      {getCategoryStatusLabel(category)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
+                          <button
+                            onClick={() => handleDelete(category.id)}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md border transition ${
+                              category.status === 'active'
+                                ? 'border-amber-200 text-amber-700 hover:bg-amber-50'
+                                : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+                            }`}
+                            title={getNextStatusActionLabel(category)}
+                          >
+                            <Power size={14} />
+                            {getNextStatusActionLabel(category)}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
