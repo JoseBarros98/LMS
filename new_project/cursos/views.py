@@ -474,12 +474,45 @@ class CuotaPagoMatriculaViewSet(viewsets.ModelViewSet):
         cuota = serializer.save()
         return Response(self.get_serializer(cuota).data)
 
+    def _promote_enrollment_to_lifetime_if_paid(self, matricula_ruta_id=None, matricula_curso_id=None):
+        cuota_filters = {}
+        if matricula_ruta_id:
+            cuota_filters['matricula_ruta_id'] = matricula_ruta_id
+        elif matricula_curso_id:
+            cuota_filters['matricula_curso_id'] = matricula_curso_id
+        else:
+            return
+
+        cuotas = CuotaPagoMatricula.objects.filter(**cuota_filters)
+        totals = cuotas.aggregate(
+            total_monto=Sum('monto'),
+            total_pagado=Sum('monto_pagado'),
+            cuotas_pendientes=Count('id', filter=~Q(estado=CuotaPagoMatricula.ESTADO_PAGADO)),
+        )
+
+        total_monto = totals.get('total_monto') or Decimal('0.00')
+        total_pagado = totals.get('total_pagado') or Decimal('0.00')
+        cuotas_pendientes = totals.get('cuotas_pendientes') or 0
+
+        if total_monto <= Decimal('0.00'):
+            return
+
+        if cuotas_pendientes > 0 or total_pagado < total_monto:
+            return
+
+        if matricula_ruta_id:
+            MatriculaRuta.objects.filter(id=matricula_ruta_id).update(activa=True, fecha_fin=None)
+        elif matricula_curso_id:
+            MatriculaCurso.objects.filter(id=matricula_curso_id).update(activa=True, fecha_fin=None)
+
     @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
     def registrar_pago(self, request, pk=None):
         if not is_admin_user(request.user):
             return Response({'detail': 'Solo los administradores pueden registrar pagos.'}, status=status.HTTP_403_FORBIDDEN)
 
         cuota_inicial = self.get_object()
+        matricula_ruta_id = cuota_inicial.matricula_ruta_id
+        matricula_curso_id = cuota_inicial.matricula_curso_id
         serializer = RegistrarPagoCuotaSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -515,6 +548,11 @@ class CuotaPagoMatriculaViewSet(viewsets.ModelViewSet):
 
                 updated_ids.append(str(cuota.id))
                 remaining -= aplicado
+
+            self._promote_enrollment_to_lifetime_if_paid(
+                matricula_ruta_id=matricula_ruta_id,
+                matricula_curso_id=matricula_curso_id,
+            )
 
         payload = {
             'updated_cuotas': CuotaPagoControlSerializer(
