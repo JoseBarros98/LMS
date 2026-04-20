@@ -102,6 +102,11 @@ class TicketUpdateSerializer(serializers.ModelSerializer):
         request = self.context['request']
         is_admin = is_admin_user(request.user)
 
+        if self.instance and self.instance.status in {'resolved', 'closed'}:
+            raise serializers.ValidationError(
+                'Este ticket no se puede editar porque ya fue marcado como resuelto o cerrado.'
+            )
+
         if is_admin:
             return attrs
 

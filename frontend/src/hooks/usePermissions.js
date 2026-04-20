@@ -46,8 +46,6 @@ export function usePermissions() {
 
   const hasPermission = (resource, action) => {
     if (loading) return false
-
-    if (isAdmin()) return true
     
     const resourcePermissions = userPermissions[resource]
     if (!resourcePermissions) return false
@@ -68,7 +66,6 @@ export function usePermissions() {
   // Acceso a páginas
   const canAccessPage = (pageName) => {
     if (loading) return false
-    if (isAdmin()) return true
     const pages = userPermissions['pages']
     if (!Array.isArray(pages)) return false
     return pages.includes(pageName)

@@ -74,6 +74,9 @@ export const ticketsApi = {
       },
     })
   },
+
+  // Eliminar ticket
+  deleteTicket: (ticketId) => api.delete(`/tickets/${ticketId}/`),
   
   // Responder a un ticket
   respondTicket: (ticketId, message) => 

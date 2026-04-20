@@ -10,6 +10,13 @@ const defaultForm = {
   attachment: null,
 }
 
+const PRIORITY_OPTIONS = [
+  { value: 'low', label: 'Baja' },
+  { value: 'medium', label: 'Media' },
+  { value: 'high', label: 'Alta' },
+  { value: 'urgent', label: 'Urgente' },
+]
+
 export default function TicketModal({ ticketEdit, categories, isAdmin, onSubmit, onClosed }) {
   const [formData, setFormData] = useState({
     ...defaultForm,
@@ -96,26 +103,6 @@ export default function TicketModal({ ticketEdit, categories, isAdmin, onSubmit,
     }
   }
 
-  const getPriorityColor = (priority) => {
-    const colors = {
-      low: 'border-gray-300',
-      medium: 'border-yellow-300',
-      high: 'border-orange-300',
-      urgent: 'border-red-300'
-    }
-    return colors[priority] || colors.medium
-  }
-
-  const getPriorityBg = (priority) => {
-    const colors = {
-      low: 'bg-gray-50',
-      medium: 'bg-yellow-50',
-      high: 'bg-orange-50',
-      urgent: 'bg-red-50'
-    }
-    return colors[priority] || colors.medium
-  }
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -197,47 +184,18 @@ export default function TicketModal({ ticketEdit, categories, isAdmin, onSubmit,
               <label className="block text-xs font-medium text-gray-500 mb-1">
                 Prioridad
               </label>
-              <div className="space-y-2">
-                {[
-                  { value: 'low', label: 'Baja', icon: '↓' },
-                  { value: 'medium', label: 'Media', icon: '→' },
-                  { value: 'high', label: 'Alta', icon: '↑' },
-                  { value: 'urgent', label: 'Urgente', icon: '⚡' }
-                ].map(priority => (
-                  <label
-                    key={priority.value}
-                    className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition ${
-                      formData.priority === priority.value
-                        ? `${getPriorityColor(priority.value)} ${getPriorityBg(priority.value)}`
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="priority"
-                      value={priority.value}
-                      checked={formData.priority === priority.value}
-                      onChange={handleChange}
-                      className="sr-only"
-                    />
-                    <div className="flex items-center justify-between w-full">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-4 h-4 rounded-full border-2 ${
-                          formData.priority === priority.value
-                            ? 'border-blue-600 bg-blue-600'
-                            : 'border-gray-300'
-                        }`}>
-                          {formData.priority === priority.value && (
-                            <div className="w-2 h-2 bg-white rounded-full m-0.5"></div>
-                          )}
-                        </div>
-                        <span className="text-sm font-medium">{priority.label}</span>
-                      </div>
-                      <span className="text-lg">{priority.icon}</span>
-                    </div>
-                  </label>
+              <select
+                name="priority"
+                value={formData.priority}
+                onChange={handleChange}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              >
+                {PRIORITY_OPTIONS.map(priority => (
+                  <option key={priority.value} value={priority.value}>
+                    {priority.label}
+                  </option>
                 ))}
-              </div>
+              </select>
             </div>
 
             {isAdmin && isEditing && (

@@ -130,7 +130,7 @@ class TicketViewSet(viewsets.ModelViewSet):
         'create': 'create',
         'update': ['update', 'update_own'],
         'partial_update': ['update', 'update_own'],
-        'destroy': 'delete',
+        'destroy': ['delete', 'delete_own'],
         'respond': 'respond',
         'responses': ['read', 'read_own'],
         'assign': 'update',
@@ -141,6 +141,20 @@ class TicketViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if not user or not user.role:
             return Ticket.objects.none()
+
+        action = getattr(self, 'action', None)
+
+        if action in ['update', 'partial_update']:
+            if has_role_permission(user, 'tickets', 'update'):
+                return Ticket.objects.select_related('user', 'assigned_to', 'category').all()
+
+            return Ticket.objects.filter(user=user).select_related('user', 'assigned_to', 'category')
+
+        if action == 'destroy':
+            if has_role_permission(user, 'tickets', 'delete'):
+                return Ticket.objects.select_related('user', 'assigned_to', 'category').all()
+
+            return Ticket.objects.filter(user=user).select_related('user', 'assigned_to', 'category')
             
         # Admins ven todos los tickets
         if has_role_permission(user, 'tickets', 'read'):
@@ -236,6 +250,11 @@ class TicketViewSet(viewsets.ModelViewSet):
             )
         
         ticket = self.get_object()
+        if ticket.status in {'resolved', 'closed'}:
+            return Response(
+                {'error': 'Este ticket no se puede editar porque ya fue marcado como resuelto o cerrado.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         assigned_to_id = request.data.get('assigned_to')
         
         if assigned_to_id:
@@ -276,6 +295,11 @@ class TicketViewSet(viewsets.ModelViewSet):
             )
         
         ticket = self.get_object()
+        if ticket.status in {'resolved', 'closed'}:
+            return Response(
+                {'error': 'Este ticket no se puede editar porque ya fue marcado como resuelto o cerrado.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         previous_status = ticket.status
         ticket.status = 'closed'
         ticket.resolved_at = timezone.now()

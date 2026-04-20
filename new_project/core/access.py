@@ -17,9 +17,6 @@ def get_role_permissions(user):
 
 
 def has_role_permission(user, resource, action):
-    if is_admin_user(user):
-        return True
-
     if not user or not getattr(user, 'is_authenticated', False):
         return False
 
@@ -31,30 +28,14 @@ def has_role_permission(user, resource, action):
 
 
 def has_any_role_permission(user, resource, actions):
-    if is_admin_user(user):
-        return True
-
     return any(has_role_permission(user, resource, action) for action in actions or [])
 
 
 def has_page_access(user, page_name):
-    if is_admin_user(user):
-        return True
-
     return page_name in (get_role_permissions(user).get('pages') or [])
 
 
 def get_dashboard_sections(user):
-    if is_admin_user(user):
-        return {
-            'overview': True,
-            'academy': True,
-            'support': True,
-            'activity': True,
-            'courses_panel': True,
-            'quick_actions': True,
-        }
-
     permissions = get_role_permissions(user)
 
     # Priorizar granularidad nueva para estudiantes y mantener compatibilidad con el recurso antiguo.
