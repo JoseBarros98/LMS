@@ -26,6 +26,50 @@ const sanitizePayload = (data) => {
   return payload
 }
 
+const buildEnrollmentFormData = (data = {}) => {
+  const formData = new FormData()
+
+  Object.entries(data).forEach(([key, value]) => {
+    if (value === null || value === undefined || value === '') return
+
+    if (key === '_comprobante_pago_file') {
+      formData.append('comprobante_pago', value)
+      return
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item !== null && item !== undefined && item !== '') {
+          formData.append(key, String(item))
+        }
+      })
+      return
+    }
+
+    formData.append(key, String(value))
+  })
+
+  return formData
+}
+
+const postEnrollment = (url, data) => {
+  if (data?._comprobante_pago_file) {
+    const formData = buildEnrollmentFormData(data)
+    return api.post(url, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+  }
+
+  return api.post(url, sanitizePayload(data))
+}
+
+const sendEnrollmentPatch = (url, data) => {
+  if (data?._comprobante_pago_file) {
+    const formData = buildEnrollmentFormData(data)
+    return api.patch(url, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+  }
+
+  return api.patch(url, sanitizePayload(data))
+}
+
 export const cursosApi = {
   getRutas: async () => {
     const response = await api.get('/rutas/')
@@ -80,9 +124,9 @@ export const cursosApi = {
     return response.data
   },
 
-  createMatriculaRuta: (data) => api.post('/matriculas-ruta/', sanitizePayload(data)),
+  createMatriculaRuta: (data) => postEnrollment('/matriculas-ruta/', data),
 
-  updateMatriculaRuta: (id, data) => api.patch(`/matriculas-ruta/${id}/`, sanitizePayload(data)),
+  updateMatriculaRuta: (id, data) => sendEnrollmentPatch(`/matriculas-ruta/${id}/`, data),
 
   deleteMatriculaRuta: (id) => api.delete(`/matriculas-ruta/${id}/`),
 
@@ -91,15 +135,26 @@ export const cursosApi = {
     return response.data
   },
 
-  createMatriculaCurso: (data) => api.post('/matriculas-curso/', sanitizePayload(data)),
+  createMatriculaCurso: (data) => postEnrollment('/matriculas-curso/', data),
 
-  updateMatriculaCurso: (id, data) => api.patch(`/matriculas-curso/${id}/`, sanitizePayload(data)),
+  updateMatriculaCurso: (id, data) => sendEnrollmentPatch(`/matriculas-curso/${id}/`, data),
 
   deleteMatriculaCurso: (id) => api.delete(`/matriculas-curso/${id}/`),
 
   updateCuotaPago: (id, data) => api.patch(`/cuotas-pago/${id}/`, sanitizePayload(data)),
 
-  registrarPagoCuota: (id, data) => api.post(`/cuotas-pago/${id}/registrar_pago/`, sanitizePayload(data)),
+  registrarPagoCuota: (id, data) => {
+    const { _comprobante_cuota_file, ...rest } = data
+    if (_comprobante_cuota_file) {
+      const formData = new FormData()
+      Object.entries(sanitizePayload(rest)).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) formData.append(key, value)
+      })
+      formData.append('comprobante_pago', _comprobante_cuota_file)
+      return api.post(`/cuotas-pago/${id}/registrar_pago/`, formData, { headers: { 'Content-Type': 'multipart/form-data' } })
+    }
+    return api.post(`/cuotas-pago/${id}/registrar_pago/`, sanitizePayload(rest))
+  },
 
   getCursoDetalle: async (id) => {
     const response = await api.get(`/cursos/${id}/`)
@@ -107,19 +162,19 @@ export const cursosApi = {
   },
 
   createStudentAndEnrollInRuta: (rutaId, data) => {
-    return api.post(`/rutas/${rutaId}/crear_estudiante_matriculado/`, sanitizePayload(data))
+    return postEnrollment(`/rutas/${rutaId}/crear_estudiante_matriculado/`, data)
   },
 
   enrollExistingStudentInRuta: (rutaId, data) => {
-    return api.post(`/rutas/${rutaId}/matricular_estudiante_existente/`, sanitizePayload(data))
+    return postEnrollment(`/rutas/${rutaId}/matricular_estudiante_existente/`, data)
   },
 
   createStudentAndEnrollInCurso: (cursoId, data) => {
-    return api.post(`/cursos/${cursoId}/crear_estudiante_matriculado/`, sanitizePayload(data))
+    return postEnrollment(`/cursos/${cursoId}/crear_estudiante_matriculado/`, data)
   },
 
   enrollExistingStudentInCurso: (cursoId, data) => {
-    return api.post(`/cursos/${cursoId}/matricular_estudiante_existente/`, sanitizePayload(data))
+    return postEnrollment(`/cursos/${cursoId}/matricular_estudiante_existente/`, data)
   },
 
   getUsersForEnrollment: async () => {

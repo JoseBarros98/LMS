@@ -90,7 +90,7 @@ def extract_enrollment_fields(validated_data):
     }
 
     # Avoid sending explicit nulls to serializers for optional fields.
-    for key in ('codigo_acceso', 'numero_cuotas', 'fechas_pago', 'fecha_inicio', 'fecha_fin'):
+    for key in ('codigo_acceso', 'numero_cuotas', 'fechas_pago', 'fecha_inicio', 'fecha_fin', 'comprobante_pago'):
         if key in validated_data and validated_data.get(key) is not None:
             payload[key] = validated_data.get(key)
 
@@ -559,7 +559,13 @@ class CuotaPagoMatriculaViewSet(viewsets.ModelViewSet):
                 cuota.monto_pagado = (cuota.monto_pagado or Decimal('0.00')) + aplicado
                 cuota.fecha_pago_real = fecha_pago_real
                 cuota.refresh_payment_state()
-                cuota.save(update_fields=['monto_pagado', 'estado', 'fecha_pago_real', 'updated_at'])
+                update_fields = ['monto_pagado', 'estado', 'fecha_pago_real', 'updated_at']
+                if cuota.id == cuota_inicial.id:
+                    comprobante = serializer.validated_data.get('comprobante_pago')
+                    if comprobante is not None:
+                        cuota.comprobante_pago = comprobante
+                        update_fields.append('comprobante_pago')
+                cuota.save(update_fields=update_fields)
 
                 updated_ids.append(str(cuota.id))
                 remaining -= aplicado

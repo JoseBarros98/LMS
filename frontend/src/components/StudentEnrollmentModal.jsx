@@ -36,6 +36,8 @@ export default function StudentEnrollmentModal({
   const [userSearch, setUserSearch] = useState('')
   const [selectedUserId, setSelectedUserId] = useState('')
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 })
+  const [paymentProofFile, setPaymentProofFile] = useState(null)
+  const [montoPagado, setMontoPagado] = useState('')
   const inputRef = useRef(null)
 
   useEffect(() => {
@@ -107,6 +109,10 @@ export default function StudentEnrollmentModal({
   }, [userSearch, users])
 
   const canSubmit = useMemo(() => {
+    if (!paymentProofFile) {
+      return false
+    }
+
     if (mode === 'existing') {
       return Boolean(selectedUserId)
     }
@@ -119,7 +125,7 @@ export default function StudentEnrollmentModal({
       form.university.trim() &&
       form.country.trim()
     )
-  }, [form, mode, selectedUserId])
+  }, [form, mode, paymentProofFile, selectedUserId])
 
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target
@@ -160,12 +166,14 @@ export default function StudentEnrollmentModal({
         numero_cuotas: enrollmentType === 'curso' ? 1 : Number(form.numero_cuotas),
         fecha_inicio: form.fecha_inicio,
         fecha_fin: form.fecha_fin,
-        activa: form.activa,
+        activa: true,
+        monto_pagado: montoPagado ? Number(montoPagado) : 0,
+        _comprobante_pago_file: paymentProofFile,
       })
       return
     }
 
-    await onSubmit({ ...form, mode })
+    await onSubmit({ ...form, mode, activa: true, monto_pagado: montoPagado ? Number(montoPagado) : 0, _comprobante_pago_file: paymentProofFile })
   }
 
   return (
@@ -390,79 +398,100 @@ export default function StudentEnrollmentModal({
             </div>
           )}
 
-          <div className="border-t border-gray-100 pt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="border-t border-gray-100 pt-4 space-y-3">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Plan de pago</label>
-              <select
-                name="plan_pago"
-                value={enrollmentType === 'curso' ? 'contado' : form.plan_pago}
-                onChange={handleChange}
-                disabled={enrollmentType === 'curso'}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100"
-              >
-                <option value="contado">Contado</option>
-                {enrollmentType === 'ruta' && <option value="credito">Credito</option>}
-              </select>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Comprobante de pago (PDF o imagen) *</label>
+              <input
+                type="file"
+                accept=".pdf,image/png,image/jpeg,image/jpg,image/webp"
+                onChange={(event) => setPaymentProofFile(event.target.files?.[0] || null)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-blue-700"
+                required
+              />
+              <p className="mt-1 text-xs text-gray-500">Formatos permitidos: PDF, PNG, JPG, JPEG y WEBP.</p>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Numero de pagos</label>
-              {enrollmentType === 'curso' ? (
-                <input
-                  value="1"
-                  disabled
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-100"
-                />
-              ) : form.plan_pago === 'contado' ? (
+              <label className="block text-xs font-medium text-gray-500 mb-1">Monto pagado (Bs)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={montoPagado}
+                onChange={(event) => setMontoPagado(event.target.value)}
+                placeholder="0.00"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+              <p className="mt-1 text-xs text-gray-500">Monto abonado al momento de la matricula. Puedes dejarlo en 0 si aun no se registra el pago.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Plan de pago</label>
                 <select
-                  name="numero_cuotas"
-                  value={form.numero_cuotas}
+                  name="plan_pago"
+                  value={enrollmentType === 'curso' ? 'contado' : form.plan_pago}
+                  onChange={handleChange}
+                  disabled={enrollmentType === 'curso'}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-gray-100"
+                >
+                  <option value="contado">Contado</option>
+                  {enrollmentType === 'ruta' && <option value="credito">Credito</option>}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Numero de pagos</label>
+                {enrollmentType === 'curso' ? (
+                  <input
+                    value="1"
+                    disabled
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-100"
+                  />
+                ) : form.plan_pago === 'contado' ? (
+                  <select
+                    name="numero_cuotas"
+                    value={form.numero_cuotas}
+                    onChange={handleChange}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  >
+                    <option value={1}>1 pago</option>
+                    <option value={2}>2 pagos</option>
+                  </select>
+                ) : (
+                  <input
+                    value="Se calcula automaticamente segun duracion"
+                    disabled
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-100"
+                  />
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Fecha inicio</label>
+                <input
+                  type="date"
+                  name="fecha_inicio"
+                  value={form.fecha_inicio}
                   onChange={handleChange}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                >
-                  <option value={1}>1 pago</option>
-                  <option value={2}>2 pagos</option>
-                </select>
-              ) : (
-                <input
-                  value="Se calcula automaticamente segun duracion"
-                  disabled
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-100"
                 />
-              )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Fecha fin</label>
+                <input
+                  type="date"
+                  name="fecha_fin"
+                  value={form.fecha_fin}
+                  onChange={handleChange}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Fecha inicio</label>
-              <input
-                type="date"
-                name="fecha_inicio"
-                value={form.fecha_inicio}
-                onChange={handleChange}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Fecha fin</label>
-              <input
-                type="date"
-                name="fecha_fin"
-                value={form.fecha_fin}
-                onChange={handleChange}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-            </div>
-
-            <label className="inline-flex items-center gap-2 text-sm text-gray-700 md:col-span-4">
-              <input
-                type="checkbox"
-                name="activa"
-                checked={form.activa}
-                onChange={handleChange}
-              />
-              Matricula activa
-            </label>
           </div>
         </form>
 

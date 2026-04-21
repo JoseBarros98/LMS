@@ -301,11 +301,24 @@ export default function CursoDetalle() {
     try {
       setSubmittingStudent(true)
       setStudentEnrollmentError('')
+      const montoAbonado = Number(form.monto_pagado || 0)
+      const registrarAbono = async (matriculaData) => {
+        if (montoAbonado <= 0) return
+        const primerasCuota = matriculaData?.cuotas?.[0]
+        if (!primerasCuota) return
+        try {
+          await cursosApi.registrarPagoCuota(primerasCuota.id, { monto_abonado: montoAbonado })
+        } catch {
+          showError('Matricula creada, pero no se pudo registrar el abono inicial. Hazlo desde el detalle de la inscripcion.')
+        }
+      }
       if (form.mode === 'existing') {
-        await cursosApi.enrollExistingStudentInCurso(id, form)
+        const response = await cursosApi.enrollExistingStudentInCurso(id, form)
+        await registrarAbono(response?.data?.matricula)
         showSuccess('Estudiante existente matriculado en el curso.')
       } else {
         const response = await cursosApi.createStudentAndEnrollInCurso(id, form)
+        await registrarAbono(response?.data?.matricula)
         const generatedPassword = response?.data?.generated_password
         const userEmail = response?.data?.user?.email
         if (userEmail && generatedPassword) {

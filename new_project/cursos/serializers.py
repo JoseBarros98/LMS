@@ -1,5 +1,6 @@
 import secrets
 import string
+import os
 from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -67,6 +68,31 @@ def _split_amount_by_installments(total_amount, installments):
     return amounts
 
 
+ALLOWED_PAYMENT_PROOF_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg', '.webp'}
+ALLOWED_PAYMENT_PROOF_CONTENT_TYPES = {
+    'application/pdf',
+    'image/png',
+    'image/jpeg',
+    'image/webp',
+}
+
+
+def validate_payment_proof_file(value):
+    if not value:
+        raise serializers.ValidationError('Debes subir un comprobante de pago en PDF o imagen.')
+
+    _, extension = os.path.splitext((value.name or '').lower())
+    content_type = (getattr(value, 'content_type', '') or '').lower()
+
+    if extension not in ALLOWED_PAYMENT_PROOF_EXTENSIONS:
+        raise serializers.ValidationError('Formato no permitido. Sube un PDF o imagen (PNG, JPG, JPEG, WEBP).')
+
+    if content_type and content_type not in ALLOWED_PAYMENT_PROOF_CONTENT_TYPES:
+        raise serializers.ValidationError('Tipo de archivo invalido. Solo se permite PDF o imagen.')
+
+    return value
+
+
 class CuotaPagoMatriculaSerializer(serializers.ModelSerializer):
     saldo_pendiente = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
 
@@ -114,6 +140,12 @@ class CuotaPagoControlSerializer(serializers.ModelSerializer):
 class RegistrarPagoCuotaSerializer(serializers.Serializer):
     monto_abonado = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal('0.01'))
     fecha_pago_real = serializers.DateField(required=False)
+    comprobante_pago = serializers.FileField(required=False, allow_null=True)
+
+    def validate_comprobante_pago(self, value):
+        if value is not None:
+            validate_payment_proof_file(value)
+        return value
 
 
 class RutaSerializer(serializers.ModelSerializer):
@@ -501,6 +533,8 @@ class MatriculaRutaSerializer(serializers.ModelSerializer):
     user_estado = serializers.SerializerMethodField()
     ruta_titulo = serializers.CharField(source='ruta.titulo', read_only=True)
     created_by_nombre = serializers.SerializerMethodField()
+    comprobante_pago_url = serializers.SerializerMethodField()
+    comprobante_pago = serializers.FileField(required=False, allow_null=True)
     cuotas = CuotaPagoMatriculaSerializer(source='cuotas_pago', many=True, read_only=True)
     fechas_pago = serializers.ListField(
         child=serializers.DateField(),
@@ -526,6 +560,8 @@ class MatriculaRutaSerializer(serializers.ModelSerializer):
             'plan_pago',
             'numero_cuotas',
             'monto_total',
+            'comprobante_pago',
+            'comprobante_pago_url',
             'fecha_inicio',
             'fecha_fin',
             'fechas_pago',
@@ -553,6 +589,14 @@ class MatriculaRutaSerializer(serializers.ModelSerializer):
         ).strip()
         return full_name or obj.created_by.email
 
+    def get_comprobante_pago_url(self, obj):
+        if not obj.comprobante_pago:
+            return None
+        try:
+            return obj.comprobante_pago.url
+        except ValueError:
+            return None
+
     def validate(self, attrs):
         fecha_inicio = attrs.get('fecha_inicio')
         fecha_fin = attrs.get('fecha_fin')
@@ -574,6 +618,9 @@ class MatriculaRutaSerializer(serializers.ModelSerializer):
 
         if not ruta:
             raise serializers.ValidationError({'ruta': 'Debe seleccionar una ruta valida.'})
+
+        if self.instance is None:
+            validate_payment_proof_file(attrs.get('comprobante_pago'))
 
         totals = ruta.cursos.aggregate(
             total_precio=Sum('precio'),
@@ -694,6 +741,8 @@ class MatriculaCursoSerializer(serializers.ModelSerializer):
     ruta_id = serializers.UUIDField(source='curso.ruta_id', read_only=True)
     ruta_titulo = serializers.SerializerMethodField()
     created_by_nombre = serializers.SerializerMethodField()
+    comprobante_pago_url = serializers.SerializerMethodField()
+    comprobante_pago = serializers.FileField(required=False, allow_null=True)
     cuotas = CuotaPagoMatriculaSerializer(source='cuotas_pago', many=True, read_only=True)
     fechas_pago = serializers.ListField(
         child=serializers.DateField(),
@@ -722,6 +771,8 @@ class MatriculaCursoSerializer(serializers.ModelSerializer):
             'plan_pago',
             'numero_cuotas',
             'monto_total',
+            'comprobante_pago',
+            'comprobante_pago_url',
             'incluido_en_ruta',
             'fecha_inicio',
             'fecha_fin',
@@ -755,6 +806,14 @@ class MatriculaCursoSerializer(serializers.ModelSerializer):
             return ''
         return obj.curso.ruta.titulo
 
+    def get_comprobante_pago_url(self, obj):
+        if not obj.comprobante_pago:
+            return None
+        try:
+            return obj.comprobante_pago.url
+        except ValueError:
+            return None
+
     def validate(self, attrs):
         fecha_inicio = attrs.get('fecha_inicio')
         fecha_fin = attrs.get('fecha_fin')
@@ -776,6 +835,9 @@ class MatriculaCursoSerializer(serializers.ModelSerializer):
 
         if not curso:
             raise serializers.ValidationError({'curso': 'Debe seleccionar un curso valido.'})
+
+        if self.instance is None:
+            validate_payment_proof_file(attrs.get('comprobante_pago'))
 
         if covered_by_route:
             attrs['_resolved_numero_cuotas'] = 0
@@ -871,8 +933,11 @@ class CreateStudentEnrollmentSerializer(serializers.Serializer):
     fecha_fin = serializers.DateField(required=False, allow_null=True)
     fechas_pago = serializers.ListField(child=serializers.DateField(), required=False)
     activa = serializers.BooleanField(required=False, default=True)
+    comprobante_pago = serializers.FileField(required=True)
 
     def validate(self, attrs):
+        validate_payment_proof_file(attrs.get('comprobante_pago'))
+
         if User.objects.filter(email=attrs['email']).exists():
             raise serializers.ValidationError({'email': 'Ya existe un usuario con este email.'})
 
@@ -913,8 +978,11 @@ class EnrollExistingStudentSerializer(serializers.Serializer):
     fecha_fin = serializers.DateField(required=False, allow_null=True)
     fechas_pago = serializers.ListField(child=serializers.DateField(), required=False)
     activa = serializers.BooleanField(required=False, default=True)
+    comprobante_pago = serializers.FileField(required=True)
 
     def validate(self, attrs):
+        validate_payment_proof_file(attrs.get('comprobante_pago'))
+
         try:
             user = User.objects.get(id=attrs['user_id'])
         except User.DoesNotExist as exc:

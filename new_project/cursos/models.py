@@ -317,6 +317,7 @@ class MatriculaRuta(models.Model):
     plan_pago = models.CharField(max_length=10, choices=PLAN_PAGO_CHOICES, default=PLAN_CONTADO)
     numero_cuotas = models.PositiveSmallIntegerField(default=1)
     monto_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    comprobante_pago = models.FileField(upload_to='comprobantes_pago/', blank=True, null=True)
     fecha_inicio = models.DateField(blank=True, null=True)
     fecha_fin = models.DateField(blank=True, null=True)
     activa = models.BooleanField(default=True)
@@ -371,6 +372,7 @@ class MatriculaCurso(models.Model):
     numero_cuotas = models.PositiveSmallIntegerField(default=1)
     monto_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     incluido_en_ruta = models.BooleanField(default=False)
+    comprobante_pago = models.FileField(upload_to='comprobantes_pago/', blank=True, null=True)
     fecha_inicio = models.DateField(blank=True, null=True)
     fecha_fin = models.DateField(blank=True, null=True)
     activa = models.BooleanField(default=True)
@@ -433,6 +435,7 @@ class CuotaPagoMatricula(models.Model):
     fecha_pago = models.DateField()
     fecha_pago_real = models.DateField(blank=True, null=True)
     estado = models.CharField(max_length=12, choices=ESTADO_CHOICES, default=ESTADO_PENDIENTE)
+    comprobante_pago = models.FileField(upload_to='comprobantes_cuota/', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
