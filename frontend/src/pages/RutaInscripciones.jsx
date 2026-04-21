@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Search } from 'lucide-react'
+import { ArrowLeft, MessageCircle, Search } from 'lucide-react'
 import Layout from '../components/Layout'
 import EnrollmentDetailModal from '../components/EnrollmentDetailModal'
+import GeneratedPasswordModal from '../components/GeneratedPasswordModal'
 import StudentEnrollmentModal from '../components/StudentEnrollmentModal'
 import { cursosApi } from '../api/cursos'
 import { useAuth } from '../context/AuthContext'
 import { getApiErrorMessage, showConfirm, showError, showSuccess } from '../utils/toast'
+import { getGeneratedCredentialByEmail, rememberGeneratedCredential } from '../utils/enrollmentCredentials'
+import { buildEnrollmentWhatsappLink } from '../utils/whatsapp'
 
 export default function RutaInscripciones() {
   const navigate = useNavigate()
@@ -23,6 +26,7 @@ export default function RutaInscripciones() {
   const [submittingRutaEnrollment, setSubmittingRutaEnrollment] = useState(false)
   const [rutaEnrollmentTarget, setRutaEnrollmentTarget] = useState(null)
   const [busqueda, setBusqueda] = useState('')
+  const [generatedCredentials, setGeneratedCredentials] = useState(null)
 
   const isAdmin = user?.role?.name?.toLowerCase() === 'administrador'
 
@@ -130,8 +134,21 @@ export default function RutaInscripciones() {
         await cursosApi.enrollExistingStudentInRuta(rutaEnrollmentTarget.id, form)
         showSuccess('Estudiante existente matriculado en la ruta.')
       } else {
-        await cursosApi.createStudentAndEnrollInRuta(rutaEnrollmentTarget.id, form)
-        showSuccess('Estudiante creado y matriculado en la ruta.')
+        const response = await cursosApi.createStudentAndEnrollInRuta(rutaEnrollmentTarget.id, form)
+        const generatedPassword = response?.data?.generated_password
+        const userEmail = response?.data?.user?.email
+        if (userEmail && generatedPassword) {
+          rememberGeneratedCredential({ email: userEmail, password: generatedPassword })
+        }
+        if (generatedPassword) {
+          setGeneratedCredentials({
+            studentName: response?.data?.user?.name || form.name,
+            password: generatedPassword,
+            contextLabel: 'la matricula de la ruta',
+          })
+        } else {
+          showSuccess('Estudiante creado y matriculado en la ruta.')
+        }
       }
       setRutaEnrollmentTarget(null)
       await loadData()
@@ -166,6 +183,16 @@ export default function RutaInscripciones() {
       return [nombre, ci, telefono, estado, matriculadoPor].some((value) => value.includes(query))
     })
   }, [busqueda, matriculasRuta])
+
+  const getWhatsappLink = (matricula) => buildEnrollmentWhatsappLink({
+    phoneNumber: matricula.user_telefono,
+    studentName: matricula.user_nombre,
+    sourceTitle: ruta?.titulo,
+    sourceType: 'ruta',
+    userEmail: matricula.user_email,
+    generatedPassword: getGeneratedCredentialByEmail(matricula.user_email),
+    platformUrl: window.location.origin,
+  })
 
   return (
     <Layout>
@@ -239,7 +266,20 @@ export default function RutaInscripciones() {
                   <tr key={matricula.id}>
                     <td className="px-4 py-3">{matricula.user_nombre}</td>
                     <td className="px-4 py-3">{matricula.user_ci || '-'}</td>
-                    <td className="px-4 py-3">{matricula.user_telefono || '-'}</td>
+                    <td className="px-4 py-3">
+                      {getWhatsappLink(matricula) ? (
+                        <a
+                          href={getWhatsappLink(matricula)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-emerald-700 hover:bg-emerald-100"
+                          title="Enviar mensaje por WhatsApp"
+                        >
+                          <MessageCircle size={14} />
+                          {matricula.user_telefono}
+                        </a>
+                      ) : (matricula.user_telefono || '-')}
+                    </td>
                     <td className="px-4 py-3">{matricula.user_estado || '-'}</td>
                     <td className="px-4 py-3">{new Date(matricula.created_at).toLocaleDateString('es-BO')}</td>
                     <td className="px-4 py-3">{matricula.created_by_nombre || '-'}</td>
@@ -381,6 +421,16 @@ export default function RutaInscripciones() {
               setRutaEnrollmentTarget(null)
               setRutaEnrollmentError('')
             }}
+          />
+        )}
+
+        {generatedCredentials && (
+          <GeneratedPasswordModal
+            open={Boolean(generatedCredentials)}
+            studentName={generatedCredentials.studentName}
+            password={generatedCredentials.password}
+            contextLabel={generatedCredentials.contextLabel}
+            onClose={() => setGeneratedCredentials(null)}
           />
         )}
       </div>

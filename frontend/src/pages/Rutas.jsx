@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Edit, Plus, Search, Sparkles, Trash2, UserPlus } from 'lucide-react'
 import Layout from '../components/Layout'
+import GeneratedPasswordModal from '../components/GeneratedPasswordModal'
 import RutaModal from '../components/RutaModal'
 import StudentEnrollmentModal from '../components/StudentEnrollmentModal'
 import { cursosApi } from '../api/cursos'
 import { useAuth } from '../context/AuthContext'
 import { formatCurrencyBs, formatDuration } from '../utils/formatters'
 import { getApiErrorMessage, showConfirm, showError, showSuccess } from '../utils/toast'
+import { rememberGeneratedCredential } from '../utils/enrollmentCredentials'
 
 export default function Rutas() {
   const navigate = useNavigate()
@@ -22,6 +24,7 @@ export default function Rutas() {
   const [rutaEnrollmentError, setRutaEnrollmentError] = useState('')
   const [submittingRutaEnrollment, setSubmittingRutaEnrollment] = useState(false)
   const [busqueda, setBusqueda] = useState('')
+  const [generatedCredentials, setGeneratedCredentials] = useState(null)
 
   const isAdmin = user?.role?.name?.toLowerCase() === 'administrador'
 
@@ -112,8 +115,21 @@ export default function Rutas() {
         await cursosApi.enrollExistingStudentInRuta(rutaEnrollmentTarget.id, form)
         showSuccess('Estudiante existente matriculado en la ruta.')
       } else {
-        await cursosApi.createStudentAndEnrollInRuta(rutaEnrollmentTarget.id, form)
-        showSuccess('Estudiante creado y matriculado en la ruta.')
+        const response = await cursosApi.createStudentAndEnrollInRuta(rutaEnrollmentTarget.id, form)
+        const generatedPassword = response?.data?.generated_password
+        const userEmail = response?.data?.user?.email
+        if (userEmail && generatedPassword) {
+          rememberGeneratedCredential({ email: userEmail, password: generatedPassword })
+        }
+        if (generatedPassword) {
+          setGeneratedCredentials({
+            studentName: response?.data?.user?.name || form.name,
+            password: generatedPassword,
+            contextLabel: 'la matricula de la ruta',
+          })
+        } else {
+          showSuccess('Estudiante creado y matriculado en la ruta.')
+        }
       }
       setRutaEnrollmentTarget(null)
       await loadData()
@@ -304,6 +320,16 @@ export default function Rutas() {
           />
         )}
       </div>
+
+      {generatedCredentials && (
+        <GeneratedPasswordModal
+          open={Boolean(generatedCredentials)}
+          studentName={generatedCredentials.studentName}
+          password={generatedCredentials.password}
+          contextLabel={generatedCredentials.contextLabel}
+          onClose={() => setGeneratedCredentials(null)}
+        />
+      )}
     </Layout>
   )
 }

@@ -28,6 +28,7 @@ import Calendario from './pages/Calendario'
 import Flashcards from './pages/Flashcards'
 import StudentDashboard from './pages/StudentDashboard'
 import Notificaciones from './pages/Notificaciones'
+import MensajesWhatsapp from './pages/MensajesWhatsapp'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -65,6 +66,12 @@ createRoot(document.getElementById('root')).render(
           <Route path="/configuracion" element={
             <PrivateRoute>
               <Configuracion />
+            </PrivateRoute>
+          } />
+
+          <Route path="/mensajes-whatsapp" element={
+            <PrivateRoute requiredPage="mensajes_whatsapp">
+              <MensajesWhatsapp />
             </PrivateRoute>
           } />
 

@@ -3,11 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Clock3, MessageCircle, Send, Trash2, BookOpen, Package, Settings, Plus, X, Folder, FolderOpen, FileText, Search, ChevronRight, Link2, Video, Headphones, Pencil, Upload, UserPlus, Monitor, Play, History, CheckCircle2 } from 'lucide-react'
 import Layout from '../components/Layout'
 import StudentEnrollmentModal from '../components/StudentEnrollmentModal'
+import GeneratedPasswordModal from '../components/GeneratedPasswordModal'
 import InstruccionesModal from '../components/InstruccionesModal'
 import { cursosApi } from '../api/cursos'
 import { simuladoresApi } from '../api/simuladores'
 import { useAuth } from '../context/AuthContext'
 import { formatCurrencyBs, formatDuration } from '../utils/formatters'
+import { rememberGeneratedCredential } from '../utils/enrollmentCredentials'
 import { getApiErrorMessage, showConfirm, showError, showSuccess } from '../utils/toast'
 
 const nivelBadge = {
@@ -223,6 +225,7 @@ export default function CursoDetalle() {
   const [studentModalOpen, setStudentModalOpen] = useState(false)
   const [studentEnrollmentError, setStudentEnrollmentError] = useState('')
   const [submittingStudent, setSubmittingStudent] = useState(false)
+  const [generatedCredentials, setGeneratedCredentials] = useState(null)
   const [simuladorModal, setSimuladorModal] = useState(null)
   const [iniciandoSimuladorId, setIniciandoSimuladorId] = useState(null)
 
@@ -302,8 +305,21 @@ export default function CursoDetalle() {
         await cursosApi.enrollExistingStudentInCurso(id, form)
         showSuccess('Estudiante existente matriculado en el curso.')
       } else {
-        await cursosApi.createStudentAndEnrollInCurso(id, form)
-        showSuccess('Estudiante creado y matriculado en el curso.')
+        const response = await cursosApi.createStudentAndEnrollInCurso(id, form)
+        const generatedPassword = response?.data?.generated_password
+        const userEmail = response?.data?.user?.email
+        if (userEmail && generatedPassword) {
+          rememberGeneratedCredential({ email: userEmail, password: generatedPassword })
+        }
+        if (generatedPassword) {
+          setGeneratedCredentials({
+            studentName: response?.data?.user?.name || form.name,
+            password: generatedPassword,
+            contextLabel: 'la matricula del curso',
+          })
+        } else {
+          showSuccess('Estudiante creado y matriculado en el curso.')
+        }
       }
       setStudentModalOpen(false)
       await loadData()
@@ -1706,6 +1722,16 @@ export default function CursoDetalle() {
             setStudentModalOpen(false)
             setStudentEnrollmentError('')
           }}
+        />
+      )}
+
+      {generatedCredentials && (
+        <GeneratedPasswordModal
+          open={Boolean(generatedCredentials)}
+          studentName={generatedCredentials.studentName}
+          password={generatedCredentials.password}
+          contextLabel={generatedCredentials.contextLabel}
+          onClose={() => setGeneratedCredentials(null)}
         />
       )}
     </Layout>

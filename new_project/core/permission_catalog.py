@@ -15,6 +15,7 @@ PERMISSION_CATALOG = {
             'categorias',
             'users',
             'roles',
+            'mensajes_whatsapp',
         ],
     },
     'dashboard': {

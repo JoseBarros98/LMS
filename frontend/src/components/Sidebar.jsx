@@ -23,6 +23,7 @@ const pageNameMap = {
     'Categorías': 'categorias',
     'Usuarios': 'users',
     'Roles': 'roles',
+    'Mensajes WhatsApp': 'mensajes_whatsapp',
 }
 
 const menu = [
@@ -63,6 +64,7 @@ const menu = [
         items: [
             { label: 'Usuarios', icon: User, path: '/users' },
             { label: 'Roles', icon: ShieldCheck, path: '/roles' },
+            { label: 'Mensajes WhatsApp', icon: Bell, path: '/mensajes-whatsapp' },
         ]
 
     },

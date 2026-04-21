@@ -16,6 +16,7 @@ export const PERMISSIONS_CATALOG = {
       { key: 'categorias', label: 'Categorias' },
       { key: 'users', label: 'Usuarios' },
       { key: 'roles', label: 'Roles' },
+      { key: 'mensajes_whatsapp', label: 'Mensajes WhatsApp' },
     ],
   },
   dashboard: {

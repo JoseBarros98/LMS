@@ -12,7 +12,6 @@ const initialForm = {
   phone_number: '',
   university: '',
   country: '',
-  password: '',
   plan_pago: 'contado',
   numero_cuotas: 2,
   fecha_inicio: '',
@@ -118,8 +117,7 @@ export default function StudentEnrollmentModal({
       form.email.trim() &&
       form.phone_number.trim() &&
       form.university.trim() &&
-      form.country.trim() &&
-      form.password.trim()
+      form.country.trim()
     )
   }, [form, mode, selectedUserId])
 
@@ -173,7 +171,7 @@ export default function StudentEnrollmentModal({
   return (
     <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="w-full max-w-2xl bg-white rounded-2xl border border-gray-200 shadow-xl flex flex-col max-h-[92vh]">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-3 flex-shrink-0">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-start justify-between gap-3 shrink-0">
           <div>
             <h2 className="text-lg font-bold text-gray-800">{title}</h2>
             {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
@@ -188,7 +186,7 @@ export default function StudentEnrollmentModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-grow">
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto grow">
           {error && (
             <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
               {error}
@@ -302,16 +300,9 @@ export default function StudentEnrollmentModal({
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-xs font-medium text-gray-500 mb-1">Contrasena temporal *</label>
-                <input
-                  type="password"
-                  name="password"
-                  value={form.password}
-                  onChange={handleChange}
-                  minLength={6}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                  required
-                />
+                <p className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2.5 text-sm text-blue-800">
+                  La contrasena inicial se genera automaticamente con el primer nombre y el CI del estudiante.
+                </p>
               </div>
             </div>
           ) : (
@@ -475,7 +466,7 @@ export default function StudentEnrollmentModal({
           </div>
         </form>
 
-        <div className="px-6 py-4 border-t border-gray-100 flex gap-3 flex-shrink-0">
+        <div className="px-6 py-4 border-t border-gray-100 flex gap-3 shrink-0">
             <button
               type="button"
               onClick={onClose}

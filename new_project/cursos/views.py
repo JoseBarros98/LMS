@@ -1,5 +1,7 @@
 from datetime import date, timedelta
 from decimal import Decimal
+import re
+import unicodedata
 
 from django.db.models import Count, DecimalField, DurationField, Q, Sum, Value
 from django.db import transaction
@@ -111,6 +113,15 @@ def build_student_user_data(validated_data, role):
     }
 
 
+def generate_student_password(validated_data):
+    normalized_name = unicodedata.normalize('NFKD', validated_data['name']).encode('ascii', 'ignore').decode('ascii')
+    first_name = next((chunk for chunk in re.split(r'\s+', normalized_name.strip()) if chunk), 'estudiante')
+    first_name = re.sub(r'[^A-Za-z0-9]', '', first_name) or 'estudiante'
+    ci_digits = re.sub(r'\D', '', validated_data['ci'])
+    ci_fragment = ci_digits or re.sub(r'[^A-Za-z0-9]', '', validated_data['ci']) or '0000'
+    return f"{first_name.capitalize()}{ci_fragment}!"
+
+
 class RutaViewSet(viewsets.ModelViewSet):
     queryset = Ruta.objects.annotate(
         total_cursos=Count('cursos', distinct=True),
@@ -143,10 +154,11 @@ class RutaViewSet(viewsets.ModelViewSet):
 
         validated = serializer.validated_data
         student_role = ensure_student_role()
+        generated_password = generate_student_password(validated)
 
         with transaction.atomic():
             user = User.objects.create_user(
-                password=validated['password'],
+                password=generated_password,
                 **build_student_user_data(validated, student_role),
             )
             enrollment_payload = {
@@ -162,6 +174,7 @@ class RutaViewSet(viewsets.ModelViewSet):
             {
                 'user': UserSerializer(user, context={'request': request}).data,
                 'matricula': MatriculaRutaSerializer(matricula, context={'request': request}).data,
+                'generated_password': generated_password,
             },
             status=status.HTTP_201_CREATED,
         )
@@ -292,10 +305,11 @@ class CursoViewSet(viewsets.ModelViewSet):
 
         validated = serializer.validated_data
         student_role = ensure_student_role()
+        generated_password = generate_student_password(validated)
 
         with transaction.atomic():
             user = User.objects.create_user(
-                password=validated['password'],
+                password=generated_password,
                 **build_student_user_data(validated, student_role),
             )
             enrollment_payload = {
@@ -311,6 +325,7 @@ class CursoViewSet(viewsets.ModelViewSet):
             {
                 'user': UserSerializer(user, context={'request': request}).data,
                 'matricula': MatriculaCursoSerializer(matricula, context={'request': request}).data,
+                'generated_password': generated_password,
             },
             status=status.HTTP_201_CREATED,
         )

@@ -864,7 +864,6 @@ class CreateStudentEnrollmentSerializer(serializers.Serializer):
     phone_number = serializers.CharField(max_length=20)
     university = serializers.CharField(max_length=100)
     country = serializers.CharField(max_length=100)
-    password = serializers.CharField(write_only=True, min_length=6)
     codigo_acceso = serializers.CharField(max_length=120, required=False, allow_blank=True, allow_null=True)
     plan_pago = serializers.ChoiceField(choices=MatriculaRuta.PLAN_PAGO_CHOICES, required=False, default=MatriculaRuta.PLAN_CONTADO)
     numero_cuotas = serializers.IntegerField(required=False, min_value=1)
