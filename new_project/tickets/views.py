@@ -129,8 +129,8 @@ class TicketViewSet(viewsets.ModelViewSet):
         'list': ['read', 'read_own'],
         'retrieve': ['read', 'read_own'],
         'create': 'create',
-        'update': ['update', 'update_own'],
-        'partial_update': ['update', 'update_own'],
+        'update': ['update', 'update_own', 'change_status'],
+        'partial_update': ['update', 'update_own', 'change_status'],
         'destroy': ['delete', 'delete_own'],
         'respond': 'respond',
         'responses': ['read', 'read_own'],
@@ -146,25 +146,34 @@ class TicketViewSet(viewsets.ModelViewSet):
         action = getattr(self, 'action', None)
 
         if action in ['update', 'partial_update']:
-            if has_role_permission(user, 'tickets', 'update'):
+            if has_any_role_permission(user, 'tickets', ['update', 'change_status']):
                 return Ticket.objects.select_related('user', 'assigned_to', 'category').all()
-
-            return Ticket.objects.filter(user=user).select_related('user', 'assigned_to', 'category')
+            
+            if has_role_permission(user, 'tickets', 'update_own'):
+                return Ticket.objects.filter(user=user).select_related('user', 'assigned_to', 'category')
+            
+            return Ticket.objects.none()
 
         if action == 'destroy':
             if has_role_permission(user, 'tickets', 'delete'):
                 return Ticket.objects.select_related('user', 'assigned_to', 'category').all()
 
-            return Ticket.objects.filter(user=user).select_related('user', 'assigned_to', 'category')
+            if has_role_permission(user, 'tickets', 'delete_own'):
+                return Ticket.objects.filter(user=user).select_related('user', 'assigned_to', 'category')
+            
+            return Ticket.objects.none()
             
         # Admins ven todos los tickets
         if has_role_permission(user, 'tickets', 'read'):
             return Ticket.objects.select_related('user', 'assigned_to', 'category').all()
         
         # Usuarios ven solo sus tickets
-        return Ticket.objects.filter(
-            user=user
-        ).select_related('user', 'assigned_to', 'category')
+        if has_role_permission(user, 'tickets', 'read_own'):
+            return Ticket.objects.filter(
+                user=user
+            ).select_related('user', 'assigned_to', 'category')
+        
+        return Ticket.objects.none()
     
     def list(self, request):
         """

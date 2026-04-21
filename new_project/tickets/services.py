@@ -100,6 +100,13 @@ def notify_ticket_responded(ticket, response, actor):
 
     notifications = []
     actor_name = actor.name if actor else 'Un usuario'
+    response_excerpt = (response.message or '').strip().replace('\n', ' ')
+    if len(response_excerpt) > 140:
+        response_excerpt = f'{response_excerpt[:140].rstrip()}...'
+
+    response_preview_text = (
+        f' Mensaje: "{response_excerpt}"' if response_excerpt else ''
+    )
 
     for recipient in recipients:
         notifications.append(
@@ -109,7 +116,10 @@ def notify_ticket_responded(ticket, response, actor):
                 notification_type=Notification.TYPE_TICKET_RESPONSE,
                 status_tag=Notification.STATUS_INFO,
                 title='Nueva respuesta en ticket',
-                message=f'{actor_name} respondio el ticket #{ticket.id} "{ticket.title}".',
+                message=(
+                    f'{actor_name} respondio el ticket #{ticket.id} "{ticket.title}".'
+                    f'{response_preview_text}'
+                ),
             )
         )
 

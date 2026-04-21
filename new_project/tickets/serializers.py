@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from core.access import is_admin_user
+from core.access import has_role_permission, is_admin_user
 from core.models import Role
 from .models import TicketCategory, Ticket, TicketResponse, Notification
 
@@ -101,6 +101,8 @@ class TicketUpdateSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         request = self.context['request']
         is_admin = is_admin_user(request.user)
+        has_change_status = has_role_permission(request.user, 'tickets', 'change_status')
+        is_owner = self.instance and self.instance.user == request.user
 
         if self.instance and self.instance.status in {'resolved', 'closed'}:
             raise serializers.ValidationError(
@@ -110,15 +112,34 @@ class TicketUpdateSerializer(serializers.ModelSerializer):
         if is_admin:
             return attrs
 
-        readonly_fields = {'status', 'assigned_to'}
-        attempted_readonly = readonly_fields.intersection(attrs.keys())
+        if has_change_status:
+            allowed_fields = {'status', 'priority'}
+            attempted_fields = set(attrs.keys())
+            disallowed_fields = attempted_fields - allowed_fields
+            if disallowed_fields:
+                raise serializers.ValidationError(
+                    'Con este permiso solo puedes actualizar estado y prioridad del ticket.'
+                )
+            return attrs
 
-        if attempted_readonly:
-            raise serializers.ValidationError(
-                'No tienes permisos para actualizar el estado o la asignación del ticket.'
-            )
+        # Permitir cambios limitados si es dueño
+        if is_owner:
+            # Solo se permite cambiar estado si tiene permiso change_status
+            if 'status' in attrs and not has_change_status:
+                raise serializers.ValidationError(
+                    'No tienes permisos para actualizar el estado del ticket.'
+                )
+            # Nunca se puede cambiar asignación
+            if 'assigned_to' in attrs:
+                raise serializers.ValidationError(
+                    'No tienes permisos para cambiar la asignación del ticket.'
+                )
+            return attrs
 
-        return attrs
+        # Si no es dueño y no es admin, no puede editar
+        raise serializers.ValidationError(
+            'No tienes permisos para editar este ticket.'
+        )
 
 
 class TicketResponseCreateSerializer(serializers.ModelSerializer):
