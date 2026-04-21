@@ -1,8 +1,11 @@
 from datetime import date
 
 from django.db.models import Q
+import secrets
+import string
+
 from rest_framework import status, viewsets
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from core.access import get_dashboard_sections, has_page_access, has_role_permission, is_admin_user
 from core.api_permissions import RoleActionPermission
@@ -538,6 +541,21 @@ class UserViewSet(viewsets.ModelViewSet):
     def partial_update(self, request, *args, **kwargs):
         kwargs['partial'] = True
         return self.update(request, *args, **kwargs)
+
+    @action(detail=True, methods=['post'], url_path='reset_password')
+    def reset_password(self, request, pk=None):
+        if not has_role_permission(request.user, 'users', 'reset_password') and not is_admin_user(request.user):
+            return Response(
+                {'detail': 'No tienes permisos para restablecer contraseñas.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        user = self.get_object()
+        alphabet = string.ascii_letters + string.digits
+        new_password = ''.join(secrets.choice(alphabet) for _ in range(12))
+        user.set_password(new_password)
+        user.save()
+        return Response({'password': new_password})
     
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer

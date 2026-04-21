@@ -62,6 +62,7 @@ export const PERMISSIONS_CATALOG = {
       { key: 'delete', label: 'Eliminar' },
       { key: 'assign_role', label: 'Asignar Rol' },
       { key: 'update_profile', label: 'Editar Perfil' },
+      { key: 'reset_password', label: 'Restablecer Contraseña' },
     ],
   },
   roles: {

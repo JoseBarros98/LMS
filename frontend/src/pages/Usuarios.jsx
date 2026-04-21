@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { getUsers, createUser, updateUser, deleteUser } from '../api/users'
+import { getUsers, createUser, updateUser, deleteUser, resetUserPassword } from '../api/users'
 import UsuarioModal from '../components/UsuarioModal'
-import { Pencil, UserPlus, Search, UserX, UserCheck } from 'lucide-react'
+import GeneratedPasswordModal from '../components/GeneratedPasswordModal'
+import { KeyRound, Pencil, UserPlus, Search, UserX, UserCheck } from 'lucide-react'
 import Layout from '../components/Layout'
 import { usePermissions } from '../hooks/usePermissions'
 import { getApiErrorMessage, showConfirm, showError, showSuccess } from '../utils/toast'
@@ -12,8 +13,9 @@ export default function Usuarios() {
     const [modalOpen, setModalOpen] = useState(false)
     const [search, setSearch] = useState('')
     const [loading, setLoading] = useState(true)
+    const [resetPassModal, setResetPassModal] = useState({ open: false, password: '', studentName: '' })
     
-    const { canCreate, canUpdate, canDelete, loading: permissionsLoading } = usePermissions()
+    const { canCreate, canUpdate, canDelete, hasPermission, loading: permissionsLoading } = usePermissions()
     
     const fetchUsers = async () => {
         try {
@@ -77,6 +79,17 @@ export default function Usuarios() {
             } catch (error) {
                 showError(getApiErrorMessage(error, 'No se pudo reactivar el usuario.'))
             }
+        }
+    }
+
+    const handleResetPassword = async (usuario) => {
+        const fullName = `${usuario.name} ${usuario.paternal_surname || ''} ${usuario.maternal_surname || ''}`.trim()
+        if (!await showConfirm(`¿Restablecer la contraseña de ${fullName}? Se generará una nueva contraseña aleatoria.`)) return
+        try {
+            const res = await resetUserPassword(usuario.id)
+            setResetPassModal({ open: true, password: res.data.password, studentName: fullName })
+        } catch (error) {
+            showError(getApiErrorMessage(error, 'No se pudo restablecer la contraseña.'))
         }
     }
 
@@ -215,6 +228,15 @@ export default function Usuarios() {
                                     </button>
                                     )
                                 )}
+                                {hasPermission('users', 'reset_password') && (
+                                    <button
+                                        onClick={() => handleResetPassword(u)}
+                                        className="p-1.5 rounded-lg hover:bg-purple-50 text-purple-400 hover:text-purple-600 transition"
+                                        title="Restablecer contraseña"
+                                    >
+                                        <KeyRound size={16} />
+                                    </button>
+                                )}
                             </div>
                         </td>
                     </tr>
@@ -240,6 +262,15 @@ export default function Usuarios() {
             onClosed={() => { setModalOpen(false); setUserEdit(null) }}
             />
         )}
+
+        {/* Modal contraseña restablecida */}
+        <GeneratedPasswordModal
+            open={resetPassModal.open}
+            studentName={resetPassModal.studentName}
+            password={resetPassModal.password}
+            contextLabel="el restablecimiento de contraseña"
+            onClose={() => setResetPassModal({ open: false, password: '', studentName: '' })}
+        />
         </Layout>
     )
 

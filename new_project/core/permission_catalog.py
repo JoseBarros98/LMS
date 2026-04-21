@@ -32,7 +32,7 @@ PERMISSION_CATALOG = {
     },
     'users': {
         'label': 'Usuarios',
-        'actions': ['read', 'create', 'update', 'delete', 'assign_role', 'update_profile'],
+        'actions': ['read', 'create', 'update', 'delete', 'assign_role', 'update_profile', 'reset_password'],
     },
     'roles': {
         'label': 'Roles',

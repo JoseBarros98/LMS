@@ -30,3 +30,5 @@ export const updateMyProfile = (data) => api.patch('/me/', data, {
 })
 
 export const deleteUser = (id) => api.delete(`/users/${id}/`)
+
+export const resetUserPassword = (id) => api.post(`/users/${id}/reset_password/`)
