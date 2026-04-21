@@ -15,7 +15,7 @@ from core.api_permissions import RoleActionPermission
 from core.models import Role, User
 from core.serializers import UserSerializer
 
-from .models import ComentarioCurso, CuotaPagoMatricula, Curso, Leccion, MatriculaCurso, MatriculaRuta, ProgresoLeccion, Ruta, Seccion, MediatecaItem
+from .models import ComentarioCurso, ComprobantePago, CuotaPagoMatricula, Curso, Leccion, MatriculaCurso, MatriculaRuta, ProgresoLeccion, Ruta, Seccion, MediatecaItem
 from .serializers import (
     ComentarioCursoSerializer,
     CuotaPagoControlSerializer,
@@ -546,6 +546,7 @@ class CuotaPagoMatriculaViewSet(viewsets.ModelViewSet):
             ).order_by('numero')
 
         updated_ids = []
+        aplicado_por_cuota = {}  # cuota.id -> Decimal aplicado en esta transacción
         with transaction.atomic():
             for cuota in cuotas:
                 if remaining <= Decimal('0.00'):
@@ -556,6 +557,7 @@ class CuotaPagoMatriculaViewSet(viewsets.ModelViewSet):
                     continue
 
                 aplicado = saldo if remaining >= saldo else remaining
+                aplicado_por_cuota[str(cuota.id)] = aplicado
                 cuota.monto_pagado = (cuota.monto_pagado or Decimal('0.00')) + aplicado
                 cuota.fecha_pago_real = fecha_pago_real
                 cuota.refresh_payment_state()
@@ -575,13 +577,59 @@ class CuotaPagoMatriculaViewSet(viewsets.ModelViewSet):
                 matricula_curso_id=matricula_curso_id,
             )
 
-        payload = {
-            'updated_cuotas': CuotaPagoControlSerializer(
-                CuotaPagoMatricula.objects.filter(id__in=updated_ids).order_by('numero'),
-                many=True,
-            ).data,
+            # Resolve enrollment and program info for the receipt
+            cuota_inicial.refresh_from_db()
+            if matricula_ruta_id:
+                matricula = cuota_inicial.matricula_ruta
+                programa_titulo = matricula.ruta.titulo if matricula else ''
+                estudiante = matricula.user if matricula else None
+            else:
+                matricula = cuota_inicial.matricula_curso
+                programa_titulo = matricula.curso.titulo if matricula else ''
+                estudiante = matricula.user if matricula else None
+
+            recibo_obj = ComprobantePago.objects.create(
+                cuota=cuota_inicial,
+                monto_abonado=serializer.validated_data['monto_abonado'],
+                forma_pago=serializer.validated_data.get('forma_pago', ''),
+                comprobante_pago=serializer.validated_data.get('comprobante_pago'),
+                fecha_emision=fecha_pago_real,
+                registrado_por=request.user,
+            )
+
+        updated_cuotas_data = CuotaPagoControlSerializer(
+            CuotaPagoMatricula.objects.filter(id__in=updated_ids).order_by('numero'),
+            many=True,
+        ).data
+
+        registrado_por_nombre = str(request.user) if request.user else ''
+        estudiante_nombre = str(estudiante) if estudiante else ''
+        estudiante_ci = getattr(estudiante, 'ci', '') or ''
+
+        cuotas_aplicadas_con_monto = [
+            {**dict(c), 'aplicado': str(aplicado_por_cuota.get(c['id'], Decimal('0.00')))}
+            for c in updated_cuotas_data
+        ]
+
+        recibo = {
+            'numero': recibo_obj.pk,
+            'fecha_emision': str(fecha_pago_real),
+            'forma_pago': recibo_obj.forma_pago,
             'monto_abonado': str(serializer.validated_data['monto_abonado']),
             'monto_excedente': str(remaining if remaining > Decimal('0.00') else Decimal('0.00')),
+            'programa_titulo': programa_titulo,
+            'estudiante_nombre': estudiante_nombre,
+            'estudiante_ci': estudiante_ci,
+            'registrado_por_nombre': registrado_por_nombre,
+            'cuota_numero': cuota_inicial.numero,
+            'cuotas_aplicadas': cuotas_aplicadas_con_monto,
+        }
+
+        payload = {
+            'updated_cuotas': updated_cuotas_data,
+            'monto_abonado': str(serializer.validated_data['monto_abonado']),
+            'monto_excedente': str(remaining if remaining > Decimal('0.00') else Decimal('0.00')),
+            'recibo': recibo,
         }
         return Response(payload, status=status.HTTP_200_OK)
 

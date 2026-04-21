@@ -501,3 +501,33 @@ class CuotaPagoMatricula(models.Model):
     def save(self, *args, **kwargs):
         self.refresh_payment_state()
         super().save(*args, **kwargs)
+
+
+class ComprobantePago(models.Model):
+    """Recibo generado al momento de registrar un abono en una cuota."""
+
+    cuota = models.ForeignKey(
+        CuotaPagoMatricula,
+        on_delete=models.CASCADE,
+        related_name='comprobantes',
+    )
+    monto_abonado = models.DecimalField(max_digits=12, decimal_places=2)
+    forma_pago = models.CharField(max_length=100, blank=True)
+    comprobante_pago = models.FileField(upload_to='comprobantes_cuota/', blank=True, null=True)
+    fecha_emision = models.DateField()
+    registrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='comprobantes_registrados',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Comprobante de pago'
+        verbose_name_plural = 'Comprobantes de pago'
+        ordering = ['-id']
+
+    def __str__(self):
+        return f'Comprobante #{self.pk}'

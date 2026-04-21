@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Edit, Plus, Search, Sparkles, Trash2, UserPlus } from 'lucide-react'
 import Layout from '../components/Layout'
 import GeneratedPasswordModal from '../components/GeneratedPasswordModal'
+import ComprobanteModal from '../components/ComprobanteModal'
 import RutaModal from '../components/RutaModal'
 import StudentEnrollmentModal from '../components/StudentEnrollmentModal'
 import { cursosApi } from '../api/cursos'
@@ -25,6 +26,7 @@ export default function Rutas() {
   const [submittingRutaEnrollment, setSubmittingRutaEnrollment] = useState(false)
   const [busqueda, setBusqueda] = useState('')
   const [generatedCredentials, setGeneratedCredentials] = useState(null)
+  const [reciboMatricula, setReciboMatricula] = useState(null)
 
   const isAdmin = user?.role?.name?.toLowerCase() === 'administrador'
 
@@ -112,12 +114,17 @@ export default function Rutas() {
       setSubmittingRutaEnrollment(true)
       setRutaEnrollmentError('')
       const montoAbonado = Number(form.monto_pagado || 0)
+      const formaPago = form.forma_pago || ''
       const registrarAbono = async (matriculaData) => {
         if (montoAbonado <= 0) return
         const primerasCuota = matriculaData?.cuotas?.[0]
         if (!primerasCuota) return
         try {
-          await cursosApi.registrarPagoCuota(primerasCuota.id, { monto_abonado: montoAbonado })
+          const abonoRes = await cursosApi.registrarPagoCuota(primerasCuota.id, {
+            monto_abonado: montoAbonado,
+            forma_pago: formaPago,
+          })
+          if (abonoRes?.data?.recibo) setReciboMatricula(abonoRes.data.recibo)
         } catch {
           showError('Matricula creada, pero no se pudo registrar el abono inicial. Hazlo desde el detalle de la inscripcion.')
         }
@@ -343,6 +350,7 @@ export default function Rutas() {
           onClose={() => setGeneratedCredentials(null)}
         />
       )}
+      {reciboMatricula && <ComprobanteModal recibo={reciboMatricula} onClose={() => setReciboMatricula(null)} />}
     </Layout>
   )
 }

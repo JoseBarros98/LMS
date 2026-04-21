@@ -11,6 +11,7 @@ from core.models import User
 
 from .models import (
     ComentarioCurso,
+    ComprobantePago,
     CuotaPagoMatricula,
     Curso,
     Leccion,
@@ -95,6 +96,7 @@ def validate_payment_proof_file(value):
 
 class CuotaPagoMatriculaSerializer(serializers.ModelSerializer):
     saldo_pendiente = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    comprobante_pago = serializers.SerializerMethodField()
 
     class Meta:
         model = CuotaPagoMatricula
@@ -106,13 +108,23 @@ class CuotaPagoMatriculaSerializer(serializers.ModelSerializer):
             'saldo_pendiente',
             'fecha_pago',
             'fecha_pago_real',
+            'comprobante_pago',
             'estado',
         ]
-        read_only_fields = ['id', 'numero', 'monto', 'monto_pagado', 'saldo_pendiente']
+        read_only_fields = ['id', 'numero', 'monto', 'monto_pagado', 'saldo_pendiente', 'comprobante_pago']
+
+    def get_comprobante_pago(self, obj):
+        if not obj.comprobante_pago:
+            return None
+        try:
+            return obj.comprobante_pago.url
+        except ValueError:
+            return None
 
 
 class CuotaPagoControlSerializer(serializers.ModelSerializer):
     saldo_pendiente = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    comprobante_pago = serializers.SerializerMethodField()
 
     class Meta:
         model = CuotaPagoMatricula
@@ -124,6 +136,7 @@ class CuotaPagoControlSerializer(serializers.ModelSerializer):
             'saldo_pendiente',
             'fecha_pago',
             'fecha_pago_real',
+            'comprobante_pago',
             'estado',
         ]
         read_only_fields = [
@@ -133,13 +146,60 @@ class CuotaPagoControlSerializer(serializers.ModelSerializer):
             'monto_pagado',
             'saldo_pendiente',
             'fecha_pago_real',
+            'comprobante_pago',
             'estado',
         ]
+
+    def get_comprobante_pago(self, obj):
+        if not obj.comprobante_pago:
+            return None
+        try:
+            return obj.comprobante_pago.url
+        except ValueError:
+            return None
+
+
+class ComprobantePagoSerializer(serializers.ModelSerializer):
+    registrado_por_nombre = serializers.SerializerMethodField()
+    comprobante_pago = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ComprobantePago
+        fields = [
+            'id',
+            'monto_abonado',
+            'forma_pago',
+            'comprobante_pago',
+            'fecha_emision',
+            'registrado_por_nombre',
+            'cuota_id',
+            'cuota_numero',
+        ]
+
+    cuota_id = serializers.UUIDField(source='cuota.id', read_only=True)
+    cuota_numero = serializers.IntegerField(source='cuota.numero', read_only=True)
+
+    def get_registrado_por_nombre(self, obj):
+        if not obj.registrado_por:
+            return ''
+        full_name = ' '.join(
+            filter(None, [obj.registrado_por.name, obj.registrado_por.paternal_surname, obj.registrado_por.maternal_surname])
+        ).strip()
+        return full_name or obj.registrado_por.email
+
+    def get_comprobante_pago(self, obj):
+        if not obj.comprobante_pago:
+            return None
+        try:
+            return obj.comprobante_pago.url
+        except ValueError:
+            return None
 
 
 class RegistrarPagoCuotaSerializer(serializers.Serializer):
     monto_abonado = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal('0.01'))
     fecha_pago_real = serializers.DateField(required=False)
+    forma_pago = serializers.CharField(max_length=100, required=False, allow_blank=True)
     comprobante_pago = serializers.FileField(required=False, allow_null=True)
 
     def validate_comprobante_pago(self, value):
@@ -536,6 +596,7 @@ class MatriculaRutaSerializer(serializers.ModelSerializer):
     comprobante_pago_url = serializers.SerializerMethodField()
     comprobante_pago = serializers.FileField(required=False, allow_null=True)
     cuotas = CuotaPagoMatriculaSerializer(source='cuotas_pago', many=True, read_only=True)
+    comprobantes = serializers.SerializerMethodField()
     fechas_pago = serializers.ListField(
         child=serializers.DateField(),
         required=False,
@@ -566,6 +627,7 @@ class MatriculaRutaSerializer(serializers.ModelSerializer):
             'fecha_fin',
             'fechas_pago',
             'cuotas',
+            'comprobantes',
             'activa',
             'created_at',
             'updated_at',
@@ -596,6 +658,13 @@ class MatriculaRutaSerializer(serializers.ModelSerializer):
             return obj.comprobante_pago.url
         except ValueError:
             return None
+
+    def get_comprobantes(self, obj):
+        cuota_ids = obj.cuotas_pago.values_list('id', flat=True)
+        comprobantes = ComprobantePago.objects.filter(cuota_id__in=cuota_ids).select_related(
+            'cuota', 'registrado_por'
+        ).order_by('id')
+        return ComprobantePagoSerializer(comprobantes, many=True).data
 
     def validate(self, attrs):
         fecha_inicio = attrs.get('fecha_inicio')
@@ -744,6 +813,7 @@ class MatriculaCursoSerializer(serializers.ModelSerializer):
     comprobante_pago_url = serializers.SerializerMethodField()
     comprobante_pago = serializers.FileField(required=False, allow_null=True)
     cuotas = CuotaPagoMatriculaSerializer(source='cuotas_pago', many=True, read_only=True)
+    comprobantes = serializers.SerializerMethodField()
     fechas_pago = serializers.ListField(
         child=serializers.DateField(),
         required=False,
@@ -778,6 +848,7 @@ class MatriculaCursoSerializer(serializers.ModelSerializer):
             'fecha_fin',
             'fechas_pago',
             'cuotas',
+            'comprobantes',
             'activa',
             'created_at',
             'updated_at',
@@ -813,6 +884,13 @@ class MatriculaCursoSerializer(serializers.ModelSerializer):
             return obj.comprobante_pago.url
         except ValueError:
             return None
+
+    def get_comprobantes(self, obj):
+        cuota_ids = obj.cuotas_pago.values_list('id', flat=True)
+        comprobantes = ComprobantePago.objects.filter(cuota_id__in=cuota_ids).select_related(
+            'cuota', 'registrado_por'
+        ).order_by('id')
+        return ComprobantePagoSerializer(comprobantes, many=True).data
 
     def validate(self, attrs):
         fecha_inicio = attrs.get('fecha_inicio')

@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { X } from 'lucide-react'
 import { cursosApi } from '../api/cursos'
 import { getApiErrorMessage, showError, showSuccess } from '../utils/toast'
+import ComprobanteModal from './ComprobanteModal'
+import FilePreviewModal from './FilePreviewModal'
 
 const formatDate = (value) => {
   if (!value) return '-'
@@ -22,6 +24,11 @@ const formatDate = (value) => {
 const formatCurrency = (value) => {
   const amount = Number(value || 0)
   return amount.toLocaleString('es-BO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+const normalizeMediaUrl = (value) => {
+  if (!value) return value
+  return String(value).replace(/^https?:\/\/[^/]+:8000\/media\//i, '/media/')
 }
 
 export default function EnrollmentDetailModal({ enrollment, type, onClose, onUpdated }) {
@@ -47,8 +54,41 @@ export default function EnrollmentDetailModal({ enrollment, type, onClose, onUpd
   const [abonoCuotaId, setAbonoCuotaId] = useState(cuotas[0]?.id || '')
   const [abonoMonto, setAbonoMonto] = useState('')
   const [abonoFecha, setAbonoFecha] = useState('')
+  const [abonoFormaPago, setAbonoFormaPago] = useState('')
   const [abonoComprobanteFile, setAbonoComprobanteFile] = useState(null)
   const [savingAbono, setSavingAbono] = useState(false)
+  const [reciboData, setReciboData] = useState(null)
+  const [viewingRecibo, setViewingRecibo] = useState(null)
+  const [filePreview, setFilePreview] = useState(null)
+
+  const comprobantes = Array.isArray(enrollment.comprobantes) ? enrollment.comprobantes : []
+  const comprobanteMatriculaUrl = normalizeMediaUrl(enrollment.comprobante_pago_url || enrollment.comprobante_pago)
+  const comprobantesParaHistorial = useMemo(() => {
+    if (comprobantes.length === 0) return []
+
+    return comprobantes.map((comp, index) => {
+      if (index === 0 && comprobanteMatriculaUrl && !comp.comprobante_pago) {
+        return { ...comp, comprobante_pago: comprobanteMatriculaUrl }
+      }
+      return comp
+    })
+  }, [comprobantes, comprobanteMatriculaUrl])
+  const allPaid = cuotas.length > 0 && cuotas.every((c) => c.estado === 'pagado')
+
+  const buildReciboFromComprobante = (comp) => ({
+    numero: comp.id,
+    fecha_emision: comp.fecha_emision,
+    forma_pago: comp.forma_pago || '',
+    monto_abonado: comp.monto_abonado,
+    monto_excedente: '0.00',
+    programa_titulo: title,
+    estudiante_nombre: enrollment.user_nombre || '',
+    estudiante_ci: enrollment.user_ci || '',
+    registrado_por_nombre: comp.registrado_por_nombre || '',
+    comprobante_pago: normalizeMediaUrl(comp.comprobante_pago),
+    cuota_numero: comp.cuota_numero,
+    cuotas_aplicadas: [],
+  })
 
   const handleRowChange = (cuotaId, field, value) => {
     setEditingRows((prev) => ({
@@ -94,6 +134,7 @@ export default function EnrollmentDetailModal({ enrollment, type, onClose, onUpd
         monto_abonado: Number(abonoMonto),
       }
       if (abonoFecha) payload.fecha_pago_real = abonoFecha
+      if (abonoFormaPago) payload.forma_pago = abonoFormaPago
       if (abonoComprobanteFile) payload._comprobante_cuota_file = abonoComprobanteFile
 
       const response = await cursosApi.registrarPagoCuota(abonoCuotaId, payload)
@@ -106,7 +147,9 @@ export default function EnrollmentDetailModal({ enrollment, type, onClose, onUpd
 
       setAbonoMonto('')
       setAbonoFecha('')
+      setAbonoFormaPago('')
       setAbonoComprobanteFile(null)
+      if (response?.data?.recibo) setReciboData(response.data.recibo)
       if (onUpdated) await onUpdated()
     } catch (error) {
       showError(getApiErrorMessage(error, 'No se pudo registrar el pago.'))
@@ -116,6 +159,7 @@ export default function EnrollmentDetailModal({ enrollment, type, onClose, onUpd
   }
 
   return (
+    <>
     <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="w-full max-w-5xl bg-white rounded-2xl border border-gray-200 shadow-xl max-h-[92vh] overflow-y-auto">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -151,19 +195,6 @@ export default function EnrollmentDetailModal({ enrollment, type, onClose, onUpd
                 <p><span className="font-semibold">Cantidad de cuotas:</span> {enrollment.numero_cuotas || 0}</p>
                 <p><span className="font-semibold">Codigo acceso:</span> {enrollment.codigo_acceso || '-'}</p>
                 <p><span className="font-semibold">Vigencia:</span> {formatDate(enrollment.fecha_inicio)} - {formatDate(enrollment.fecha_fin)}</p>
-                <p>
-                  <span className="font-semibold">Comprobante de pago:</span>{' '}
-                  {enrollment.comprobante_pago_url || enrollment.comprobante_pago ? (
-                    <a
-                      href={enrollment.comprobante_pago_url || enrollment.comprobante_pago}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-blue-600 hover:text-blue-800 underline"
-                    >
-                      Ver comprobante
-                    </a>
-                  ) : '-'}
-                </p>
               </div>
             </div>
           </div>
@@ -178,8 +209,13 @@ export default function EnrollmentDetailModal({ enrollment, type, onClose, onUpd
                 <h3 className="text-sm font-semibold text-gray-700">Plan de pagos generado</h3>
               </div>
 
+              {allPaid ? (
+                <div className="px-4 py-3 bg-emerald-50 border-b border-emerald-100 text-sm text-emerald-700 font-medium">
+                  Todas las cuotas han sido pagadas. No se pueden registrar más abonos.
+                </div>
+              ) : (
               <div className="px-4 py-3 border-b border-gray-100 bg-white space-y-2">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
                   <select
                     value={abonoCuotaId}
                     onChange={(event) => setAbonoCuotaId(event.target.value)}
@@ -206,6 +242,16 @@ export default function EnrollmentDetailModal({ enrollment, type, onClose, onUpd
                     onChange={(event) => setAbonoFecha(event.target.value)}
                     className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
                   />
+                  <select
+                    value={abonoFormaPago}
+                    onChange={(event) => setAbonoFormaPago(event.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                  >
+                    <option value="">Selecciona una opcion</option>
+                    <option value="QR">QR</option>
+                    <option value="Efectivo">Efectivo</option>
+                    <option value="Transferencia">Transferencia</option>
+                  </select>
                   <button
                     type="button"
                     onClick={handleRegistrarAbono}
@@ -228,6 +274,7 @@ export default function EnrollmentDetailModal({ enrollment, type, onClose, onUpd
                   )}
                 </div>
               </div>
+              )}
 
               {cuotas.length === 0 ? (
                 <p className="p-4 text-sm text-gray-500">No hay cuotas registradas para esta matricula.</p>
@@ -286,11 +333,72 @@ export default function EnrollmentDetailModal({ enrollment, type, onClose, onUpd
                     </tbody>
                   </table>
                 </div>
-              )}
+              )}  
+            </div>
+          )}
+
+          {/* Historial de recibos */}
+          {(comprobanteMatriculaUrl || comprobantesParaHistorial.length > 0) && (
+            <div className="border border-blue-200 rounded-xl overflow-hidden">
+              <div className="px-4 py-2 bg-blue-50 border-b border-blue-200 flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-blue-800">Recibos de pago registrados</h3>
+                <span className="text-xs text-blue-600">{comprobantes.length} recibo{comprobantes.length !== 1 ? 's' : ''}</span>
+              </div>
+              <div className="px-4 py-3 bg-white flex flex-wrap gap-2">
+                {comprobantesParaHistorial.length === 0 && comprobanteMatriculaUrl && (
+                  <div className="inline-flex items-center gap-1.5 bg-blue-700 rounded-full px-2 py-1">
+                    <button
+                      type="button"
+                      onClick={() => setFilePreview({
+                        title: 'Comprobante de matricula',
+                        url: comprobanteMatriculaUrl,
+                      })}
+                      className="flex items-center gap-1.5 px-2 py-0.5 text-white text-xs font-medium"
+                    >
+                      <span>Comprobante matricula</span>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
+                  </div>
+                )}
+                {comprobantesParaHistorial.map((comp) => (
+                  <div key={comp.id} className="inline-flex items-center gap-1.5 bg-blue-700 rounded-full px-2 py-1">
+                    <button
+                      type="button"
+                      onClick={() => setViewingRecibo(buildReciboFromComprobante(comp))}
+                      className="flex items-center gap-1.5 px-2 py-0.5 text-white text-xs font-medium"
+                    >
+                      <span>{String(comp.id).padStart(6, '0')}</span>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
+                    {comp.comprobante_pago && (
+                      <button
+                        type="button"
+                        onClick={() => setFilePreview({
+                          title: `Comprobante adjunto #${String(comp.id).padStart(6, '0')}`,
+                          url: normalizeMediaUrl(comp.comprobante_pago),
+                        })}
+                        className="px-2 py-0.5 text-white/90 hover:text-white text-xs border-l border-white/30"
+                      >
+                        Archivo
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
       </div>
     </div>
+    {reciboData && <ComprobanteModal recibo={reciboData} onClose={() => setReciboData(null)} />}
+    {viewingRecibo && <ComprobanteModal recibo={viewingRecibo} onClose={() => setViewingRecibo(null)} />}
+    {filePreview?.url && (
+      <FilePreviewModal
+        url={filePreview.url}
+        title={filePreview.title}
+        onClose={() => setFilePreview(null)}
+      />
+    )}
+    </>
   )
 }

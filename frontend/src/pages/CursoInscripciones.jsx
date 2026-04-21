@@ -4,6 +4,7 @@ import { ArrowLeft, MessageCircle, Search } from 'lucide-react'
 import Layout from '../components/Layout'
 import EnrollmentDetailModal from '../components/EnrollmentDetailModal'
 import GeneratedPasswordModal from '../components/GeneratedPasswordModal'
+import ComprobanteModal from '../components/ComprobanteModal'
 import StudentEnrollmentModal from '../components/StudentEnrollmentModal'
 import { cursosApi } from '../api/cursos'
 import { useAuth } from '../context/AuthContext'
@@ -27,6 +28,7 @@ export default function CursoInscripciones() {
   const [cursoEnrollmentTarget, setCursoEnrollmentTarget] = useState(null)
   const [busqueda, setBusqueda] = useState('')
   const [generatedCredentials, setGeneratedCredentials] = useState(null)
+  const [reciboMatricula, setReciboMatricula] = useState(null)
 
   const isAdmin = user?.role?.name?.toLowerCase() === 'administrador'
 
@@ -114,12 +116,17 @@ export default function CursoInscripciones() {
       setSubmittingCursoEnrollment(true)
       setCursoEnrollmentError('')
       const montoAbonado = Number(form.monto_pagado || 0)
+      const formaPago = form.forma_pago || ''
       const registrarAbono = async (matriculaData) => {
         if (montoAbonado <= 0) return
         const primerasCuota = matriculaData?.cuotas?.[0]
         if (!primerasCuota) return
         try {
-          await cursosApi.registrarPagoCuota(primerasCuota.id, { monto_abonado: montoAbonado })
+          const abonoRes = await cursosApi.registrarPagoCuota(primerasCuota.id, {
+            monto_abonado: montoAbonado,
+            forma_pago: formaPago,
+          })
+          if (abonoRes?.data?.recibo) setReciboMatricula(abonoRes.data.recibo)
         } catch {
           showError('Matricula creada, pero no se pudo registrar el abono inicial. Hazlo desde el detalle de la inscripcion.')
         }
@@ -190,6 +197,48 @@ export default function CursoInscripciones() {
     platformUrl: window.location.origin,
   })
 
+  const getPlanPagoResumen = (matricula) => {
+    if (matricula.incluido_en_ruta) {
+      return {
+        label: 'Cubierto por ruta',
+        detail: 'Sin cobro directo',
+        tone: 'bg-slate-100 text-slate-700',
+      }
+    }
+
+    const cuotas = Array.isArray(matricula.cuotas) ? [...matricula.cuotas].sort((a, b) => a.numero - b.numero) : []
+    if (cuotas.length === 0) {
+      return {
+        label: matricula.plan_pago === 'credito' ? 'Credito' : 'Contado',
+        detail: 'Sin cuotas registradas',
+        tone: 'bg-slate-100 text-slate-700',
+      }
+    }
+
+    const cuotaActual = cuotas.find((cuota) => cuota.estado !== 'pagado')
+    if (!cuotaActual) {
+      return {
+        label: 'Pagado',
+        detail: 'Plan completado',
+        tone: 'bg-emerald-100 text-emerald-700',
+      }
+    }
+
+    if (cuotaActual.estado === 'parcial') {
+      return {
+        label: 'Parcial',
+        detail: `Cuota actual #${cuotaActual.numero}`,
+        tone: 'bg-sky-100 text-sky-700',
+      }
+    }
+
+    return {
+      label: matricula.plan_pago === 'credito' ? 'Credito pendiente' : 'Pendiente',
+      detail: `Cuota actual #${cuotaActual.numero}`,
+      tone: 'bg-amber-100 text-amber-700',
+    }
+  }
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -252,13 +301,16 @@ export default function CursoInscripciones() {
                   <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Documento/CI</th>
                   <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Telefono</th>
                   <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Estado</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Plan de pagos</th>
                   <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Fecha matriculacion</th>
                   <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Matriculado por</th>
                   <th className="text-left px-4 py-3 text-xs uppercase text-gray-500">Opciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {matriculasFiltradas.map((matricula) => (
+                {matriculasFiltradas.map((matricula) => {
+                  const planPagoResumen = getPlanPagoResumen(matricula)
+                  return (
                   <tr key={matricula.id}>
                     <td className="px-4 py-3">{matricula.user_nombre}</td>
                     <td className="px-4 py-3">{matricula.user_ci || '-'}</td>
@@ -277,6 +329,14 @@ export default function CursoInscripciones() {
                       ) : (matricula.user_telefono || '-')}
                     </td>
                     <td className="px-4 py-3">{matricula.user_estado || '-'}</td>
+                    <td className="px-4 py-3">
+                      <div className="space-y-1">
+                        <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${planPagoResumen.tone}`}>
+                          {planPagoResumen.label}
+                        </span>
+                        <p className="text-xs text-gray-500">{planPagoResumen.detail}</p>
+                      </div>
+                    </td>
                     <td className="px-4 py-3">{new Date(matricula.created_at).toLocaleDateString('es-BO')}</td>
                     <td className="px-4 py-3">{matricula.created_by_nombre || '-'}</td>
                     <td className="px-4 py-3">
@@ -306,7 +366,7 @@ export default function CursoInscripciones() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>
@@ -401,6 +461,7 @@ export default function CursoInscripciones() {
             onClose={() => setGeneratedCredentials(null)}
           />
         )}
+        {reciboMatricula && <ComprobanteModal recibo={reciboMatricula} onClose={() => setReciboMatricula(null)} />}
       </div>
     </Layout>
   )

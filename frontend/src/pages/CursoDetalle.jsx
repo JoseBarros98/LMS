@@ -4,6 +4,7 @@ import { ArrowLeft, Clock3, MessageCircle, Send, Trash2, BookOpen, Package, Sett
 import Layout from '../components/Layout'
 import StudentEnrollmentModal from '../components/StudentEnrollmentModal'
 import GeneratedPasswordModal from '../components/GeneratedPasswordModal'
+import ComprobanteModal from '../components/ComprobanteModal'
 import InstruccionesModal from '../components/InstruccionesModal'
 import { cursosApi } from '../api/cursos'
 import { simuladoresApi } from '../api/simuladores'
@@ -226,6 +227,7 @@ export default function CursoDetalle() {
   const [studentEnrollmentError, setStudentEnrollmentError] = useState('')
   const [submittingStudent, setSubmittingStudent] = useState(false)
   const [generatedCredentials, setGeneratedCredentials] = useState(null)
+  const [reciboMatricula, setReciboMatricula] = useState(null)
   const [simuladorModal, setSimuladorModal] = useState(null)
   const [iniciandoSimuladorId, setIniciandoSimuladorId] = useState(null)
 
@@ -302,12 +304,17 @@ export default function CursoDetalle() {
       setSubmittingStudent(true)
       setStudentEnrollmentError('')
       const montoAbonado = Number(form.monto_pagado || 0)
+      const formaPago = form.forma_pago || ''
       const registrarAbono = async (matriculaData) => {
         if (montoAbonado <= 0) return
         const primerasCuota = matriculaData?.cuotas?.[0]
         if (!primerasCuota) return
         try {
-          await cursosApi.registrarPagoCuota(primerasCuota.id, { monto_abonado: montoAbonado })
+          const abonoRes = await cursosApi.registrarPagoCuota(primerasCuota.id, {
+            monto_abonado: montoAbonado,
+            forma_pago: formaPago,
+          })
+          if (abonoRes?.data?.recibo) setReciboMatricula(abonoRes.data.recibo)
         } catch {
           showError('Matricula creada, pero no se pudo registrar el abono inicial. Hazlo desde el detalle de la inscripcion.')
         }
@@ -1747,6 +1754,7 @@ export default function CursoDetalle() {
           onClose={() => setGeneratedCredentials(null)}
         />
       )}
+      {reciboMatricula && <ComprobanteModal recibo={reciboMatricula} onClose={() => setReciboMatricula(null)} />}
     </Layout>
   )
 }

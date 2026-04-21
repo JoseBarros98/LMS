@@ -38,6 +38,7 @@ export default function StudentEnrollmentModal({
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 })
   const [paymentProofFile, setPaymentProofFile] = useState(null)
   const [montoPagado, setMontoPagado] = useState('')
+  const [formaPago, setFormaPago] = useState('')
   const inputRef = useRef(null)
 
   useEffect(() => {
@@ -168,12 +169,20 @@ export default function StudentEnrollmentModal({
         fecha_fin: form.fecha_fin,
         activa: true,
         monto_pagado: montoPagado ? Number(montoPagado) : 0,
+        forma_pago: formaPago,
         _comprobante_pago_file: paymentProofFile,
       })
       return
     }
 
-    await onSubmit({ ...form, mode, activa: true, monto_pagado: montoPagado ? Number(montoPagado) : 0, _comprobante_pago_file: paymentProofFile })
+    await onSubmit({
+      ...form,
+      mode,
+      activa: true,
+      monto_pagado: montoPagado ? Number(montoPagado) : 0,
+      forma_pago: formaPago,
+      _comprobante_pago_file: paymentProofFile,
+    })
   }
 
   return (
@@ -411,18 +420,34 @@ export default function StudentEnrollmentModal({
               <p className="mt-1 text-xs text-gray-500">Formatos permitidos: PDF, PNG, JPG, JPEG y WEBP.</p>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Monto pagado (Bs)</label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={montoPagado}
-                onChange={(event) => setMontoPagado(event.target.value)}
-                placeholder="0.00"
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-              <p className="mt-1 text-xs text-gray-500">Monto abonado al momento de la matricula. Puedes dejarlo en 0 si aun no se registra el pago.</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Monto pagado (Bs)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={montoPagado}
+                  onChange={(event) => setMontoPagado(event.target.value)}
+                  placeholder="0.00"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+                <p className="mt-1 text-xs text-gray-500">Monto abonado al momento de la matricula. Puedes dejarlo en 0 si aun no se registra el pago.</p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Forma de pago</label>
+                <select
+                  value={formaPago}
+                  onChange={(event) => setFormaPago(event.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                >
+                  <option value="">Selecciona una opcion</option>
+                  <option value="QR">QR</option>
+                  <option value="Efectivo">Efectivo</option>
+                  <option value="Transferencia">Transferencia</option>
+                </select>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
