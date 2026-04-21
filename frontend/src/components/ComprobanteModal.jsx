@@ -1,5 +1,7 @@
-import { useRef } from 'react'
-import { X, Printer } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { X, Download } from 'lucide-react'
+import { jsPDF } from 'jspdf'
+import html2canvas from 'html2canvas'
 
 const formatDate = (value) => {
   if (!value) return '-'
@@ -25,74 +27,92 @@ const formatCurrency = (value) => {
  */
 export default function ComprobanteModal({ recibo, onClose }) {
   const printRef = useRef(null)
+  const [downloading, setDownloading] = useState(false)
 
   if (!recibo) return null
 
-  const handlePrint = () => {
-    const content = printRef.current?.innerHTML
-    if (!content) return
-    const win = window.open('', '_blank', 'width=800,height=700')
-    win.document.write(`<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <title>Comprobante #${recibo.numero}</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: Arial, sans-serif; font-size: 12px; color: #111; padding: 24px; }
-    .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #1e3a6e; padding-bottom: 12px; margin-bottom: 16px; }
-    .school-name { font-size: 18px; font-weight: bold; color: #1e3a6e; }
-    .school-slogan { font-size: 10px; color: #555; font-style: italic; }
-    .badge { border: 1px solid #1e3a6e; padding: 4px 10px; font-weight: bold; color: #1e3a6e; font-size: 13px; }
-    .comprobante-title { text-align: center; font-size: 15px; font-weight: bold; border: 2px solid #1e3a6e; padding: 6px 20px; display: inline-block; margin: 12px auto; }
-    .center { text-align: center; }
-    .meta { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 10px; }
-    .meta-box { border: 1px solid #ccc; padding: 4px 8px; font-size: 11px; }
-    .info-row { margin-bottom: 6px; font-size: 12px; }
-    .info-row span { font-weight: bold; }
-    table { width: 100%; border-collapse: collapse; margin: 14px 0; }
-    th { background-color: #1e3a6e; color: white; padding: 6px 8px; text-align: center; font-size: 11px; }
-    td { border: 1px solid #ccc; padding: 6px 8px; text-align: center; font-size: 11px; }
-    .total-row { font-weight: bold; text-align: right; padding: 6px; border-top: 2px solid #1e3a6e; }
-    .total-label { font-size: 11px; color: #1a6e2e; font-weight: bold; }
-    .signatures { display: flex; justify-content: space-between; margin-top: 32px; text-align: center; }
-    .sig-box { width: 45%; border-top: 1px solid #333; padding-top: 6px; font-size: 11px; }
-    .footer { margin-top: 16px; font-size: 10px; color: #555; text-align: center; }
-    @media print { body { padding: 12px; } }
-  </style>
-</head>
-<body>${content}</body>
-</html>`)
-    win.document.close()
-    win.focus()
-    setTimeout(() => { win.print(); win.close() }, 400)
-  }
+  const handleDownload = async () => {
+    const contentNode = printRef.current
+    if (!contentNode || downloading) return
 
-  const cuotasRows = recibo.cuotas_aplicadas?.length
-    ? recibo.cuotas_aplicadas.map((c, i) => (
-      <tr key={i}>
-        <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>Colegiatura</td>
-        <td style={{ border: '1px solid #ccc', padding: '6px 8px', textAlign: 'center' }}>{c.numero}</td>
-        <td style={{ border: '1px solid #ccc', padding: '6px 8px', textAlign: 'center' }}>1</td>
-        <td style={{ border: '1px solid #ccc', padding: '6px 8px', textAlign: 'center' }}>
-          {formatCurrency(c.aplicado ?? Math.min(Number(c.monto_pagado), Number(c.monto)))}
-        </td>
-        <td style={{ border: '1px solid #ccc', padding: '6px 8px', textAlign: 'center' }}>
-          {formatCurrency(c.aplicado ?? Math.min(Number(c.monto_pagado), Number(c.monto)))}
-        </td>
-        <td style={{ border: '1px solid #ccc', padding: '6px 8px', textAlign: 'center' }}>Cuota</td>
-      </tr>
-    ))
-    : (
-      <tr>
-        <td style={{ border: '1px solid #ccc', padding: '6px 8px' }}>Colegiatura</td>
-        <td style={{ border: '1px solid #ccc', padding: '6px 8px', textAlign: 'center' }}>{recibo.cuota_numero}</td>
-        <td style={{ border: '1px solid #ccc', padding: '6px 8px', textAlign: 'center' }}>1</td>
-        <td style={{ border: '1px solid #ccc', padding: '6px 8px', textAlign: 'center' }}>{formatCurrency(recibo.monto_abonado)}</td>
-        <td style={{ border: '1px solid #ccc', padding: '6px 8px', textAlign: 'center' }}>{formatCurrency(recibo.monto_abonado)}</td>
-        <td style={{ border: '1px solid #ccc', padding: '6px 8px', textAlign: 'center' }}>Cuota</td>
-      </tr>
-    )
+    setDownloading(true)
+    try {
+      // Temporarily remove overflow so html2canvas captures the full receipt
+      // without clipping content hidden by the scrollable modal container.
+      const scrollContainer = contentNode.closest('.overflow-y-auto')
+      const prevOverflow = scrollContainer ? scrollContainer.style.overflow : null
+      const prevMaxH = scrollContainer ? scrollContainer.style.maxHeight : null
+      if (scrollContainer) {
+        scrollContainer.style.overflow = 'visible'
+        scrollContainer.style.maxHeight = 'none'
+      }
+
+      const canvas = await html2canvas(contentNode, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        scrollX: 0,
+        scrollY: 0,
+        width: contentNode.offsetWidth,
+        height: contentNode.scrollHeight + 20,
+        windowWidth: contentNode.offsetWidth,
+        windowHeight: contentNode.scrollHeight + 20,
+      })
+
+      // Restore overflow
+      if (scrollContainer) {
+        scrollContainer.style.overflow = prevOverflow || ''
+        scrollContainer.style.maxHeight = prevMaxH || ''
+      }
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95)
+
+      // A4 dimensions in mm
+      const pageW = 210
+      const pageH = 297
+      const margin = 10
+      const usableW = pageW - margin * 2
+
+      const ratio = canvas.width / canvas.height
+      const imgW = usableW
+      const imgH = imgW / ratio
+
+      // If the receipt fits in one page use portrait; otherwise let it overflow (rare).
+      const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
+
+      if (imgH <= pageH - margin * 2) {
+        // Vertically center on the page
+        const yOffset = margin
+        pdf.addImage(imgData, 'JPEG', margin, yOffset, imgW, imgH)
+      } else {
+        // Content taller than one page — split across pages
+        const mmPerPx = imgW / canvas.width
+        const pageHeightPx = Math.floor((pageH - margin * 2) / mmPerPx)
+        let remainingHeight = canvas.height
+        let srcY = 0
+        let first = true
+
+        while (remainingHeight > 0) {
+          if (!first) pdf.addPage()
+          first = false
+          const sliceH = Math.min(pageHeightPx, remainingHeight)
+          const sliceCanvas = document.createElement('canvas')
+          sliceCanvas.width = canvas.width
+          sliceCanvas.height = sliceH
+          sliceCanvas.getContext('2d').drawImage(canvas, 0, srcY, canvas.width, sliceH, 0, 0, canvas.width, sliceH)
+          pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.95), 'JPEG', margin, margin, imgW, sliceH * mmPerPx)
+          srcY += sliceH
+          remainingHeight -= sliceH
+        }
+      }
+
+      pdf.save(`comprobante-${recibo.numero || 'pago'}.pdf`)
+    } catch (err) {
+      console.error('Error generando PDF:', err)
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-60 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
@@ -102,11 +122,12 @@ export default function ComprobanteModal({ recibo, onClose }) {
           <h2 className="text-sm font-semibold text-gray-700">Comprobante de pago #{recibo.numero}</h2>
           <div className="flex items-center gap-2">
             <button
-              onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+              onClick={handleDownload}
+              disabled={downloading}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <Printer size={14} />
-              Imprimir / Descargar
+              <Download size={14} />
+              {downloading ? 'Generando...' : 'Descargar PDF'}
             </button>
             <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-200 text-gray-600">
               <X size={16} />
@@ -121,7 +142,6 @@ export default function ComprobanteModal({ recibo, onClose }) {
             <div className="header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '2px solid #1e3a6e', paddingBottom: '12px', marginBottom: '16px' }}>
               <div>
                 <div className="school-name" style={{ fontSize: '18px', fontWeight: 'bold', color: '#1e3a6e' }}>PLATAFORMA EDUCATIVA</div>
-                <div className="school-slogan" style={{ fontSize: '10px', color: '#555', fontStyle: 'italic' }}>"Porque el éxito no es producto de la casualidad"</div>
               </div>
               <div className="badge" style={{ border: '1px solid #1e3a6e', padding: '4px 10px', fontWeight: 'bold', color: '#1e3a6e', fontSize: '13px' }}>
                 SISTEMA
@@ -130,9 +150,6 @@ export default function ComprobanteModal({ recibo, onClose }) {
 
             {/* Comprobante title + date */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <div className="meta-box" style={{ border: '1px solid #ccc', padding: '4px 8px', fontSize: '11px' }}>
-                <strong>Lugar / Sede</strong><br />Latam
-              </div>
               <div className="center comprobante-title" style={{ textAlign: 'center', fontSize: '15px', fontWeight: 'bold', border: '2px solid #1e3a6e', padding: '6px 20px' }}>
                 COMPROBANTE N° {recibo.numero}
               </div>
@@ -230,8 +247,8 @@ export default function ComprobanteModal({ recibo, onClose }) {
             </div>
 
             {/* Footer */}
-            <div className="footer" style={{ marginTop: '16px', fontSize: '10px', color: '#555', textAlign: 'center' }}>
-              Documento generado electronicamente — Plataforma Educativa
+            <div className="footer" style={{ marginTop: '24px', paddingBottom: '16px', fontSize: '10px', color: '#555', textAlign: 'center' }}>
+              Documento generado electrónicamente — Plataforma Educativa
             </div>
           </div>
         </div>
