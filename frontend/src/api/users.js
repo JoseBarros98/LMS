@@ -29,6 +29,14 @@ export const updateMyProfile = (data) => api.patch('/me/', data, {
     headers: {'Content-Type': 'multipart/form-data'}
 })
 
+export const updateDashboardBanner = (file) => {
+    const formData = new FormData()
+    formData.append('dashboard_banner', file)
+    return api.patch('/me/dashboard-banner/', formData, {
+        headers: {'Content-Type': 'multipart/form-data'}
+    })
+}
+
 export const deleteUser = (id) => api.delete(`/users/${id}/`)
 
 export const resetUserPassword = (id) => api.post(`/users/${id}/reset_password/`)

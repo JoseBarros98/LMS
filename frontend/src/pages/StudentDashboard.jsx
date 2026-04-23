@@ -136,13 +136,21 @@ export default function StudentDashboard() {
   const academy = dashboardData?.academy
   const support = dashboardData?.support
   const activity = dashboardData?.activity
+  const bannerUrl = dashboardData?.dashboard_banner
 
   return (
     <Layout>
       <div className="space-y-8">
         <section className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-8 items-stretch">
-          <div className="rounded-3xl overflow-hidden border border-gray-200 bg-gray-100 shadow-sm min-h-80">
-            <img src="/1.png" alt="Panel personal" className="w-full h-full object-cover" />
+          <div className="rounded-3xl overflow-hidden border border-gray-200 bg-gray-100 shadow-sm min-h-80 relative group">
+            <img
+              src={bannerUrl
+                ? `http://localhost${bannerUrl}`
+                : '/1.png'
+              }
+              alt="Panel personal"
+              className="w-full h-full object-cover"
+            />
           </div>
           <div className="bg-white rounded-3xl border border-gray-200 p-8 flex flex-col justify-between shadow-sm">
             <div>
@@ -357,6 +365,7 @@ export default function StudentDashboard() {
           </section>
         )}
       </div>
+
     </Layout>
   )
 }

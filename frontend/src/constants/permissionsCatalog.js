@@ -40,6 +40,7 @@ export const PERMISSIONS_CATALOG = {
       { key: 'activity', label: 'Actividad Reciente' },
       { key: 'courses_panel', label: 'Panel Mis Cursos' },
       { key: 'quick_actions', label: 'Acciones Rapidas' },
+      { key: 'customize_banner', label: 'Cambiar Banner de Portada' },
     ],
   },
   dashboard_admin: {

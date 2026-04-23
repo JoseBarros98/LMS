@@ -41,6 +41,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     university = models.CharField(max_length = 100)
     country = models.CharField(max_length = 100)
     profile_picture = models.ImageField(upload_to = 'profile_pictures/', null = True, blank = True)
+    dashboard_banner = models.ImageField(upload_to = 'dashboard_banners/', null = True, blank = True)
     password = models.CharField(max_length = 128)
     status = models.BooleanField(default = True)
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True, related_name='users')
@@ -57,4 +58,16 @@ class User(AbstractBaseUser, PermissionsMixin):
     
     def __str__(self):
         return f"{self.name} {self.paternal_surname} {self.maternal_surname}"
+
+
+class PlatformSetting(models.Model):
+    dashboard_banner = models.ImageField(upload_to='dashboard_banners/', null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Configuracion de plataforma'
+        verbose_name_plural = 'Configuraciones de plataforma'
+
+    def __str__(self):
+        return 'Configuracion global'
     

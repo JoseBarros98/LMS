@@ -19,7 +19,7 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from core.access import get_dashboard_sections, has_page_access, has_role_permission, is_admin_user
 from core.api_permissions import RoleActionPermission
-from .models import User, Role
+from .models import User, Role, PlatformSetting
 from .serializers import UserSerializer, RoleSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import CustomTokenObtainPairSerializer
@@ -71,6 +71,13 @@ def _resolve_backup_scope(request):
 
 def _is_backup_filename_allowed(filename):
     return filename.endswith('.sql') or filename.endswith('.tar.gz')
+
+
+def _get_dashboard_banner_url():
+    setting = PlatformSetting.objects.order_by('id').first()
+    if not setting or not setting.dashboard_banner:
+        return None
+    return setting.dashboard_banner.url
 
 
 def _db_env_and_args():
@@ -340,6 +347,7 @@ def build_admin_dashboard(user, sections):
         'viewer_name': build_user_name(user),
         'role_name': getattr(getattr(user, 'role', None), 'name', ''),
         'kind': 'admin',
+        'dashboard_banner': _get_dashboard_banner_url(),
         'sections': sections,
         'overview_cards': [
             {
@@ -549,6 +557,7 @@ def build_student_dashboard(user, sections):
         'viewer_name': build_user_name(user),
         'role_name': getattr(getattr(user, 'role', None), 'name', ''),
         'kind': 'student',
+        'dashboard_banner': _get_dashboard_banner_url(),
         'sections': sections,
         'overview_cards': [
             {
@@ -738,6 +747,29 @@ def me(request):
     serializer.is_valid(raise_exception=True)
     serializer.save()
     return Response(serializer.data)
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_dashboard_banner(request):
+    """Permite al administrador cambiar la imagen de portada global del dashboard"""
+    if not is_admin_user(request.user):
+        return Response(
+            {'detail': 'Solo un administrador puede cambiar la portada global del dashboard.'},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    if 'dashboard_banner' not in request.FILES:
+        return Response(
+            {'detail': 'El archivo dashboard_banner es requerido.'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    setting, _ = PlatformSetting.objects.get_or_create(id=1)
+    setting.dashboard_banner = request.FILES['dashboard_banner']
+    setting.save(update_fields=['dashboard_banner', 'updated_at'])
+
+    return Response({'dashboard_banner': setting.dashboard_banner.url})
 
 
 @api_view(['GET'])

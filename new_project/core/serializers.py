@@ -77,6 +77,7 @@ class UserSerializer(serializers.ModelSerializer):
             'university', 
             'country', 
             'profile_picture', 
+            'dashboard_banner',
             'status', 
             'role',
             'role_id',

@@ -11,6 +11,7 @@ from .views import (
     db_backups_import,
     db_backups_list,
     me,
+    update_dashboard_banner,
 )
 
 router = DefaultRouter()
@@ -19,6 +20,7 @@ router.register(r'roles', RoleViewSet)
 
 urlpatterns = router.urls + [
     path('me/', me, name='me'),
+    path('me/dashboard-banner/', update_dashboard_banner, name='update-dashboard-banner'),
     path('dashboard/summary/', dashboard_summary, name='dashboard-summary'),
     path('dashboard/admin-summary/', dashboard_admin_summary, name='dashboard-admin-summary'),
     path('db-backups/', db_backups_list, name='db-backups-list'),
