@@ -113,7 +113,14 @@ export default function AuditoriaDetailModal({ log, onClose }) {
 
           {/* Recurso e ID */}
           <Field icon={Hash} label="Recurso">
-            <span>{log.resource || '-'}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span>{log.resource || '-'}</span>
+              {log.entity_label && (
+                <span className="px-2 py-0.5 rounded-md text-xs bg-blue-50 text-blue-700 font-semibold">
+                  {log.entity_label}
+                </span>
+              )}
+            </div>
             {log.entity_id && (
               <span className="ml-2 px-2 py-0.5 rounded-md text-xs bg-gray-100 text-gray-500 font-mono">
                 ID {log.entity_id}

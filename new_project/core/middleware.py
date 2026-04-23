@@ -1,7 +1,6 @@
 import json
 import logging
 
-from django.http.request import RawPostDataException
 from django.utils.deprecation import MiddlewareMixin
 
 from .models import AuditLog
@@ -37,15 +36,21 @@ class AuditLogMiddleware(MiddlewareMixin):
         try:
             resource, entity_id = self._parse_resource(path)
             action = self._resolve_action(method)
-            changed_fields = self._extract_fields(request)
-            summary = self._build_summary(action, resource, entity_id, changed_fields)
+            payload = self._extract_payload(request, response)
+            changed_fields = self._extract_fields(payload)
+            entity_label = self._extract_entity_label(resource, payload)
+            summary = self._build_summary(action, resource, entity_id, entity_label, changed_fields)
 
             role_name = ''
             if getattr(user, 'role', None):
                 role_name = user.role.name or ''
 
             actor_name = ' '.join(
-                part for part in [getattr(user, 'name', ''), getattr(user, 'paternal_surname', ''), getattr(user, 'maternal_surname', '')] if part
+                part for part in [
+                    getattr(user, 'name', ''),
+                    getattr(user, 'paternal_surname', ''),
+                    getattr(user, 'maternal_surname', ''),
+                ] if part
             ).strip() or getattr(user, 'email', 'Usuario')
 
             AuditLog.objects.create(
@@ -61,8 +66,9 @@ class AuditLogMiddleware(MiddlewareMixin):
                 status_code=response.status_code,
             )
         except Exception:
-            # La auditoria no debe romper la respuesta de negocio.
-            logger.exception('AuditLogMiddleware fallo al registrar auditoria para %s %s', method, path)
+            logger.exception(
+                'AuditLogMiddleware fallo al registrar auditoria para %s %s', method, path
+            )
 
         return response
 
@@ -80,7 +86,6 @@ class AuditLogMiddleware(MiddlewareMixin):
         if len(chunks) < 2:
             return '', ''
 
-        # /api/<resource>/<id>/...
         resource = chunks[1]
         entity_id = ''
         if len(chunks) >= 3 and chunks[2] not in {'me'}:
@@ -88,24 +93,89 @@ class AuditLogMiddleware(MiddlewareMixin):
 
         return resource, entity_id
 
-    def _extract_fields(self, request):
-        content_type = request.META.get('CONTENT_TYPE', '')
-        fields = []
+    def _extract_payload(self, request, response=None):
+        """
+        Extrae datos del objeto afectado para enriquecer la auditoria.
 
-        if content_type.startswith('application/json') and request.body:
-            try:
-                payload = json.loads(request.body.decode('utf-8'))
-                if isinstance(payload, dict):
-                    fields = list(payload.keys())
-            except (RawPostDataException, ValueError, UnicodeDecodeError):
-                fields = []
-        elif request.POST:
-            fields = list(request.POST.keys())
+        Prioridad:
+        1. response.data (DRF) — disponible siempre tras la vista, sin riesgo
+           de RawPostDataException porque DRF ya consumio el stream del body.
+        2. request._body — cache privado de Django, disponible solo si Django
+           leyo el body via la propiedad antes de que DRF lo consumiera.
+        3. request.POST — para envios multipart/form-encoded.
+        """
+        payload = {}
+        try:
+            # 1. Datos de la respuesta DRF (fuente mas fiable).
+            resp_data = getattr(response, 'data', None) if response is not None else None
+            if isinstance(resp_data, dict):
+                payload = resp_data
 
-        clean_fields = [field for field in fields if field not in SENSITIVE_FIELDS]
-        return clean_fields[:6]
+            # 2. Body cacheado por Django (solo si fue leido via .body antes que DRF).
+            if not payload:
+                raw = getattr(request, '_body', None)
+                content_type = request.META.get('CONTENT_TYPE', '') or ''
+                if raw and content_type.startswith('application/json'):
+                    parsed = json.loads(raw.decode('utf-8'))
+                    if isinstance(parsed, dict):
+                        payload = parsed
 
-    def _build_summary(self, action, resource, entity_id, fields):
+            # 3. Datos de formulario (multipart / form-encoded).
+            if not payload:
+                post_data = getattr(request, 'POST', None) or {}
+                payload = dict(post_data)
+
+        except Exception:
+            payload = {}
+
+        return payload if isinstance(payload, dict) else {}
+
+    def _extract_fields(self, payload):
+        if not isinstance(payload, dict):
+            return []
+
+        fields = list(payload.keys())
+        return [f for f in fields if f not in SENSITIVE_FIELDS][:8]
+
+    def _extract_entity_label(self, resource, payload):
+        if not isinstance(payload, dict):
+            return ''
+
+        resource = (resource or '').lower()
+
+        if resource in {'users', 'usuarios', 'me'}:
+            full_name = ' '.join(
+                part for part in [
+                    str(payload.get('name', '')).strip(),
+                    str(payload.get('paternal_surname', '')).strip(),
+                    str(payload.get('maternal_surname', '')).strip(),
+                ] if part
+            ).strip()
+            if full_name:
+                return full_name
+            email = str(payload.get('email', '')).strip()
+            if email:
+                return email
+
+        candidates = [
+            payload.get('titulo'),
+            payload.get('nombre'),
+            payload.get('name'),
+            payload.get('title'),
+            payload.get('email'),
+            payload.get('slug'),
+            payload.get('codigo_acceso'),
+        ]
+        for value in candidates:
+            if value is None:
+                continue
+            text = str(value).strip()
+            if text:
+                return text
+
+        return ''
+
+    def _build_summary(self, action, resource, entity_id, entity_label, fields):
         labels = {
             'create': 'Creacion',
             'update': 'Actualizacion',
@@ -113,6 +183,8 @@ class AuditLogMiddleware(MiddlewareMixin):
             'other': 'Cambio',
         }
         base = f"{labels.get(action, 'Cambio')} en {resource or 'recurso desconocido'}"
+        if entity_label:
+            base += f": {entity_label}"
         if entity_id:
             base += f" (ID {entity_id})"
 

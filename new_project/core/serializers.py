@@ -1,4 +1,5 @@
 import token
+import re
 
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -170,6 +171,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 class AuditLogSerializer(serializers.ModelSerializer):
     actor = serializers.SerializerMethodField()
+    entity_label = serializers.SerializerMethodField()
 
     class Meta:
         model = AuditLog
@@ -180,6 +182,7 @@ class AuditLogSerializer(serializers.ModelSerializer):
             'action',
             'resource',
             'entity_id',
+            'entity_label',
             'http_method',
             'path',
             'change_summary',
@@ -193,3 +196,16 @@ class AuditLogSerializer(serializers.ModelSerializer):
         if obj.actor:
             return str(obj.actor)
         return 'Sistema'
+
+    def get_entity_label(self, obj):
+        summary = (obj.change_summary or '').strip()
+        if not summary:
+            return ''
+
+        # Ejemplo esperado: "Creacion en rutas: Ruta Basica (ID xxx). Campos: ..."
+        match = re.search(r':\s*(.+?)(?:\s+\(ID\s+[^)]+\))?(?:\.|$)', summary)
+        if not match:
+            return ''
+
+        value = (match.group(1) or '').strip()
+        return value
