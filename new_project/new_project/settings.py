@@ -144,6 +144,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:80",
     "http://localhost",
     "http://127.0.0.1",
+    "https://lms-frontend-rapm.onrender.com",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
