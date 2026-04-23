@@ -1,11 +1,14 @@
 import json
+import logging
 
+from django.http.request import RawPostDataException
 from django.utils.deprecation import MiddlewareMixin
 
 from .models import AuditLog
 
 
 SENSITIVE_FIELDS = {'password', 'new_password', 'access', 'refresh', 'token'}
+logger = logging.getLogger(__name__)
 
 
 class AuditLogMiddleware(MiddlewareMixin):
@@ -31,31 +34,35 @@ class AuditLogMiddleware(MiddlewareMixin):
         if not user or not getattr(user, 'is_authenticated', False):
             return response
 
-        resource, entity_id = self._parse_resource(path)
-        action = self._resolve_action(method)
-        changed_fields = self._extract_fields(request)
-        summary = self._build_summary(action, resource, entity_id, changed_fields)
+        try:
+            resource, entity_id = self._parse_resource(path)
+            action = self._resolve_action(method)
+            changed_fields = self._extract_fields(request)
+            summary = self._build_summary(action, resource, entity_id, changed_fields)
 
-        role_name = ''
-        if getattr(user, 'role', None):
-            role_name = user.role.name or ''
+            role_name = ''
+            if getattr(user, 'role', None):
+                role_name = user.role.name or ''
 
-        actor_name = ' '.join(
-            part for part in [getattr(user, 'name', ''), getattr(user, 'paternal_surname', ''), getattr(user, 'maternal_surname', '')] if part
-        ).strip() or getattr(user, 'email', 'Usuario')
+            actor_name = ' '.join(
+                part for part in [getattr(user, 'name', ''), getattr(user, 'paternal_surname', ''), getattr(user, 'maternal_surname', '')] if part
+            ).strip() or getattr(user, 'email', 'Usuario')
 
-        AuditLog.objects.create(
-            actor=user,
-            actor_name=actor_name,
-            actor_role_name=role_name,
-            action=action,
-            resource=resource,
-            entity_id=entity_id,
-            http_method=method,
-            path=path,
-            change_summary=summary,
-            status_code=response.status_code,
-        )
+            AuditLog.objects.create(
+                actor=user,
+                actor_name=actor_name,
+                actor_role_name=role_name,
+                action=action,
+                resource=resource,
+                entity_id=entity_id,
+                http_method=method,
+                path=path,
+                change_summary=summary,
+                status_code=response.status_code,
+            )
+        except Exception:
+            # La auditoria no debe romper la respuesta de negocio.
+            logger.exception('AuditLogMiddleware fallo al registrar auditoria para %s %s', method, path)
 
         return response
 
@@ -90,7 +97,7 @@ class AuditLogMiddleware(MiddlewareMixin):
                 payload = json.loads(request.body.decode('utf-8'))
                 if isinstance(payload, dict):
                     fields = list(payload.keys())
-            except (ValueError, UnicodeDecodeError):
+            except (RawPostDataException, ValueError, UnicodeDecodeError):
                 fields = []
         elif request.POST:
             fields = list(request.POST.keys())
