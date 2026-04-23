@@ -1,8 +1,18 @@
 from datetime import date
+from pathlib import Path
+import os
+import io
+import shutil
+import subprocess
+import tarfile
+import tempfile
+import time
 
 from django.db.models import Q
+from django.http import FileResponse
 import secrets
 import string
+from django.conf import settings
 
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
@@ -14,6 +24,160 @@ from .serializers import UserSerializer, RoleSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import CustomTokenObtainPairSerializer
 from rest_framework.response import Response
+
+
+def _has_backup_permission(user, action_name):
+    return has_role_permission(user, 'database_backups', action_name)
+
+
+def _ensure_backup_permission(request, action_name):
+    if _has_backup_permission(request.user, action_name):
+        return None
+
+    return Response(
+        {'detail': f'No tienes permisos para {action_name} backups.'},
+        status=status.HTTP_403_FORBIDDEN,
+    )
+
+
+def _backups_root():
+    root = Path(settings.BASE_DIR) / 'db_backups'
+    root.mkdir(parents=True, exist_ok=True)
+    return root
+
+
+def _media_root():
+    return Path(settings.MEDIA_ROOT)
+
+
+def _build_backup_filename(include_media=False):
+    prefix = 'full_backup' if include_media else 'backup'
+    suffix = '.tar.gz' if include_media else '.sql'
+    return f"{prefix}_{date.today().isoformat()}_{int(time.time())}{suffix}"
+
+
+def _resolve_backup_scope(request):
+    scope_raw = (request.query_params.get('scope') or request.data.get('scope') or '').strip().lower()
+    include_media_raw = (request.query_params.get('include_media') or request.data.get('include_media') or '').strip().lower()
+
+    if scope_raw in {'full', 'complete'}:
+        return 'full'
+
+    if include_media_raw in {'1', 'true', 'yes', 'on'}:
+        return 'full'
+
+    return 'db'
+
+
+def _is_backup_filename_allowed(filename):
+    return filename.endswith('.sql') or filename.endswith('.tar.gz')
+
+
+def _db_env_and_args():
+    db = settings.DATABASES.get('default', {})
+    db_name = db.get('NAME')
+    db_user = db.get('USER')
+    db_password = db.get('PASSWORD')
+    db_host = db.get('HOST') or 'localhost'
+    db_port = str(db.get('PORT') or '5432')
+
+    if not all([db_name, db_user, db_host, db_port]):
+        raise ValueError('Configuracion de base de datos incompleta para backup.')
+
+    env = os.environ.copy()
+    if db_password:
+        env['PGPASSWORD'] = db_password
+
+    args = [
+        '-h', db_host,
+        '-p', db_port,
+        '-U', db_user,
+        db_name,
+    ]
+    return env, args
+
+
+def _run_pg_dump(output_path=None):
+    env, args = _db_env_and_args()
+    command = ['pg_dump', *args]
+
+    if output_path is None:
+        result = subprocess.run(command, check=True, capture_output=True, text=True, env=env)
+        return result.stdout
+
+    command.extend(['-f', str(output_path)])
+    subprocess.run(command, check=True, capture_output=True, text=True, env=env)
+    return str(output_path)
+
+
+def _run_psql(input_path):
+    env, args = _db_env_and_args()
+    command = ['psql', *args, '-f', str(input_path)]
+    subprocess.run(command, check=True, capture_output=True, text=True, env=env)
+
+
+def _create_full_backup_archive(output_path):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir_path = Path(temp_dir)
+        db_dump_path = temp_dir_path / 'database.sql'
+        _run_pg_dump(output_path=db_dump_path)
+
+        with tarfile.open(output_path, mode='w:gz') as tar:
+            tar.add(db_dump_path, arcname='database.sql')
+
+            media_root = _media_root()
+            if media_root.exists() and media_root.is_dir():
+                tar.add(media_root, arcname='media')
+
+    return str(output_path)
+
+
+def _build_full_backup_bytes():
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.tar.gz') as temp_archive:
+        temp_archive_path = Path(temp_archive.name)
+
+    try:
+        _create_full_backup_archive(temp_archive_path)
+        return temp_archive_path.read_bytes()
+    finally:
+        try:
+            temp_archive_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def _extract_tar_safely(archive_path, target_dir):
+    with tarfile.open(archive_path, mode='r:gz') as tar:
+        target_root = Path(target_dir).resolve()
+        for member in tar.getmembers():
+            member_path = (target_root / member.name).resolve()
+            if not str(member_path).startswith(str(target_root)):
+                raise ValueError('El archivo comprimido contiene rutas inseguras.')
+        tar.extractall(path=target_root)
+
+
+def _clear_directory(directory_path):
+    directory_path.mkdir(parents=True, exist_ok=True)
+    for item in directory_path.iterdir():
+        if item.is_dir():
+            shutil.rmtree(item)
+        else:
+            item.unlink(missing_ok=True)
+
+
+def _restore_media(media_source_path):
+    media_target = _media_root()
+    _clear_directory(media_target)
+
+    if not media_source_path.exists() or not media_source_path.is_dir():
+        return
+
+    for item in media_source_path.iterdir():
+        destination = media_target / item.name
+        if item.is_dir():
+            shutil.copytree(item, destination)
+        else:
+            shutil.copy2(item, destination)
 
 
 def get_active_enrollment_filters(user):
@@ -616,3 +780,181 @@ def dashboard_admin_summary(request):
     payload = build_admin_dashboard(request.user, sections)
 
     return Response(payload)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def db_backups_list(request):
+    forbidden = _ensure_backup_permission(request, 'read')
+    if forbidden:
+        return forbidden
+
+    backups = []
+    valid_backups = [
+        path for path in _backups_root().iterdir()
+        if path.is_file() and _is_backup_filename_allowed(path.name)
+    ]
+
+    for file_path in sorted(valid_backups, key=lambda p: p.stat().st_mtime, reverse=True):
+        stat = file_path.stat()
+        backups.append({
+            'filename': file_path.name,
+            'size': stat.st_size,
+            'modified_at': int(stat.st_mtime),
+            'type': 'full' if file_path.name.endswith('.tar.gz') else 'db',
+        })
+
+    return Response({'results': backups})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def db_backups_generate(request):
+    forbidden = _ensure_backup_permission(request, 'generate')
+    if forbidden:
+        return forbidden
+
+    scope = _resolve_backup_scope(request)
+    include_media = scope == 'full'
+
+    filename = _build_backup_filename(include_media=include_media)
+    output_path = _backups_root() / filename
+
+    try:
+        if include_media:
+            _create_full_backup_archive(output_path=output_path)
+        else:
+            _run_pg_dump(output_path=output_path)
+    except FileNotFoundError:
+        return Response(
+            {'detail': 'pg_dump o psql no esta disponible en el servidor.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    except subprocess.CalledProcessError as exc:
+        return Response(
+            {'detail': 'No se pudo generar el backup.', 'error': exc.stderr or str(exc)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    except ValueError as exc:
+        return Response({'detail': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    backup_kind = 'completo' if include_media else 'base de datos'
+    return Response({'filename': filename, 'detail': f'Backup {backup_kind} generado correctamente.', 'scope': scope})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def db_backups_export(request):
+    forbidden = _ensure_backup_permission(request, 'export')
+    if forbidden:
+        return forbidden
+
+    scope = _resolve_backup_scope(request)
+    include_media = scope == 'full'
+
+    filename = _build_backup_filename(include_media=include_media)
+
+    try:
+        if include_media:
+            archive_content = _build_full_backup_bytes()
+        else:
+            sql_content = _run_pg_dump(output_path=None)
+            archive_content = sql_content.encode('utf-8')
+    except FileNotFoundError:
+        return Response(
+            {'detail': 'pg_dump o psql no esta disponible en el servidor.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    except subprocess.CalledProcessError as exc:
+        return Response(
+            {'detail': 'No se pudo exportar el backup.', 'error': exc.stderr or str(exc)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    except ValueError as exc:
+        return Response({'detail': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    buffer = io.BytesIO(archive_content)
+    content_type = 'application/gzip' if include_media else 'application/sql'
+    return FileResponse(buffer, as_attachment=True, filename=filename, content_type=content_type)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def db_backups_download(request, filename):
+    forbidden = _ensure_backup_permission(request, 'download')
+    if forbidden:
+        return forbidden
+
+    safe_name = Path(filename).name
+    if safe_name != filename or not _is_backup_filename_allowed(safe_name):
+        return Response({'detail': 'Nombre de archivo invalido.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    file_path = _backups_root() / safe_name
+    if not file_path.exists() or not file_path.is_file():
+        return Response({'detail': 'Backup no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+    content_type = 'application/gzip' if safe_name.endswith('.tar.gz') else 'application/sql'
+    return FileResponse(open(file_path, 'rb'), as_attachment=True, filename=safe_name, content_type=content_type)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def db_backups_import(request):
+    forbidden = _ensure_backup_permission(request, 'import')
+    if forbidden:
+        return forbidden
+
+    uploaded = request.FILES.get('file')
+    if not uploaded:
+        return Response({'detail': 'Debes seleccionar un archivo de backup.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    uploaded_name = uploaded.name.lower()
+    is_sql_backup = uploaded_name.endswith('.sql')
+    is_full_backup = uploaded_name.endswith('.tar.gz')
+    if not is_sql_backup and not is_full_backup:
+        return Response({'detail': 'Solo se permiten archivos .sql o .tar.gz.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    temp_suffix = '.tar.gz' if is_full_backup else '.sql'
+    temp_input = tempfile.NamedTemporaryFile(delete=False, suffix=temp_suffix)
+    for chunk in uploaded.chunks():
+        temp_input.write(chunk)
+    temp_input.flush()
+    temp_input.close()
+
+    try:
+        if is_full_backup:
+            with tempfile.TemporaryDirectory() as restore_dir:
+                restore_dir_path = Path(restore_dir)
+                _extract_tar_safely(temp_input.name, restore_dir)
+
+                db_dump_path = restore_dir_path / 'database.sql'
+                if not db_dump_path.exists() or not db_dump_path.is_file():
+                    return Response(
+                        {'detail': 'El backup completo no contiene database.sql.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                _run_psql(db_dump_path)
+                _restore_media(restore_dir_path / 'media')
+        else:
+            _run_psql(temp_input.name)
+    except FileNotFoundError:
+        return Response(
+            {'detail': 'psql no esta disponible en el servidor.'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    except subprocess.CalledProcessError as exc:
+        return Response(
+            {'detail': 'No se pudo importar el backup.', 'error': exc.stderr or str(exc)},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    except (ValueError, tarfile.TarError) as exc:
+        return Response({'detail': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    finally:
+        try:
+            os.remove(temp_input.name)
+        except OSError:
+            pass
+
+    backup_kind = 'completo' if is_full_backup else 'base de datos'
+    return Response({'detail': f'Backup {backup_kind} importado correctamente.'})

@@ -2,7 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import {
     LayoutDashboard, Calendar, BookOpen, Monitor, FolderOpen, Layers,
     Ticket, Bell, ChevronLeft, ChevronRight,
-    User, ShieldCheck, Tag, UserPlus, Map
+    User, ShieldCheck, Tag, UserPlus, Map, Database
 } from 'lucide-react'
 import { usePermissions } from '../hooks/usePermissions'
 import { useAuth } from '../context/AuthContext'
@@ -24,6 +24,7 @@ const pageNameMap = {
     'Usuarios': 'users',
     'Roles': 'roles',
     'Mensajes WhatsApp': 'mensajes_whatsapp',
+    'Backup Base de Datos': 'backup_bd',
 }
 
 const menu = [
@@ -65,6 +66,7 @@ const menu = [
             { label: 'Usuarios', icon: User, path: '/users' },
             { label: 'Roles', icon: ShieldCheck, path: '/roles' },
             { label: 'Mensajes WhatsApp', icon: Bell, path: '/mensajes-whatsapp' },
+            { label: 'Backup Base de Datos', icon: Database, path: '/backup-bd' },
         ]
 
     },

@@ -17,6 +17,7 @@ export const PERMISSIONS_CATALOG = {
       { key: 'users', label: 'Usuarios' },
       { key: 'roles', label: 'Roles' },
       { key: 'mensajes_whatsapp', label: 'Mensajes WhatsApp' },
+      { key: 'backup_bd', label: 'Backup BD' },
     ],
   },
   dashboard: {
@@ -183,6 +184,16 @@ export const PERMISSIONS_CATALOG = {
       { key: 'export', label: 'Exportar' },
     ],
   },
+  database_backups: {
+    label: 'Backups de Base de Datos',
+    actions: [
+      { key: 'read', label: 'Ver Listado' },
+      { key: 'generate', label: 'Generar' },
+      { key: 'download', label: 'Descargar' },
+      { key: 'import', label: 'Importar' },
+      { key: 'export', label: 'Exportar' },
+    ],
+  },
 }
 
 export const RESOURCE_ORDER = [
@@ -202,4 +213,5 @@ export const RESOURCE_ORDER = [
   'enrollments',
   'routes',
   'reports',
+  'database_backups',
 ]

@@ -29,6 +29,7 @@ import Flashcards from './pages/Flashcards'
 import StudentDashboard from './pages/StudentDashboard'
 import Notificaciones from './pages/Notificaciones'
 import MensajesWhatsapp from './pages/MensajesWhatsapp'
+import DatabaseBackups from './pages/DatabaseBackups'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -72,6 +73,12 @@ createRoot(document.getElementById('root')).render(
           <Route path="/mensajes-whatsapp" element={
             <PrivateRoute requiredPage="mensajes_whatsapp">
               <MensajesWhatsapp />
+            </PrivateRoute>
+          } />
+
+          <Route path="/backup-bd" element={
+            <PrivateRoute requiredPage="backup_bd">
+              <DatabaseBackups />
             </PrivateRoute>
           } />
 

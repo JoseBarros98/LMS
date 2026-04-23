@@ -16,6 +16,7 @@ PERMISSION_CATALOG = {
             'users',
             'roles',
             'mensajes_whatsapp',
+            'backup_bd',
         ],
     },
     'dashboard': {
@@ -77,6 +78,10 @@ PERMISSION_CATALOG = {
     'reports': {
         'label': 'Reportes',
         'actions': ['read', 'create', 'update', 'delete', 'export'],
+    },
+    'database_backups': {
+        'label': 'Backups de base de datos',
+        'actions': ['read', 'generate', 'download', 'import', 'export'],
     },
 }
 
