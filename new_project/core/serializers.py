@@ -3,7 +3,7 @@ import token
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from django.contrib.auth import authenticate
-from .models import User, Role
+from .models import User, Role, AuditLog
 from .permission_catalog import PERMISSION_CATALOG, get_valid_permission_actions
 
 class RoleSerializer(serializers.ModelSerializer):
@@ -166,3 +166,30 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'refresh': str(refresh),
             'access': str(refresh.access_token),
         }
+
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    actor = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AuditLog
+        fields = [
+            'id',
+            'actor',
+            'actor_role_name',
+            'action',
+            'resource',
+            'entity_id',
+            'http_method',
+            'path',
+            'change_summary',
+            'status_code',
+            'created_at',
+        ]
+
+    def get_actor(self, obj):
+        if obj.actor_name:
+            return obj.actor_name
+        if obj.actor:
+            return str(obj.actor)
+        return 'Sistema'

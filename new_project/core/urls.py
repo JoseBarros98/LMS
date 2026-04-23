@@ -10,6 +10,7 @@ from .views import (
     db_backups_generate,
     db_backups_import,
     db_backups_list,
+    audit_logs_list,
     me,
     update_dashboard_banner,
 )
@@ -28,4 +29,5 @@ urlpatterns = router.urls + [
     path('db-backups/export/', db_backups_export, name='db-backups-export'),
     path('db-backups/import/', db_backups_import, name='db-backups-import'),
     path('db-backups/<str:filename>/download/', db_backups_download, name='db-backups-download'),
+    path('audit-logs/', audit_logs_list, name='audit-logs-list'),
 ]

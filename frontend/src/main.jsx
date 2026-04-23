@@ -30,6 +30,7 @@ import StudentDashboard from './pages/StudentDashboard'
 import Notificaciones from './pages/Notificaciones'
 import MensajesWhatsapp from './pages/MensajesWhatsapp'
 import DatabaseBackups from './pages/DatabaseBackups'
+import Auditoria from './pages/Auditoria'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
@@ -79,6 +80,12 @@ createRoot(document.getElementById('root')).render(
           <Route path="/backup-bd" element={
             <PrivateRoute requiredPage="backup_bd">
               <DatabaseBackups />
+            </PrivateRoute>
+          } />
+
+          <Route path="/auditoria" element={
+            <PrivateRoute requiredPage="auditoria">
+              <Auditoria />
             </PrivateRoute>
           } />
 

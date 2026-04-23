@@ -17,6 +17,7 @@ PERMISSION_CATALOG = {
             'roles',
             'mensajes_whatsapp',
             'backup_bd',
+            'auditoria',
         ],
     },
     'dashboard': {
@@ -82,6 +83,10 @@ PERMISSION_CATALOG = {
     'database_backups': {
         'label': 'Backups de base de datos',
         'actions': ['read', 'generate', 'download', 'import', 'export'],
+    },
+    'audit_logs': {
+        'label': 'Auditoria',
+        'actions': ['read'],
     },
 }
 

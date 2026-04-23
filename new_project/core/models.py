@@ -70,4 +70,33 @@ class PlatformSetting(models.Model):
 
     def __str__(self):
         return 'Configuracion global'
+
+
+class AuditLog(models.Model):
+    ACTION_CHOICES = [
+        ('create', 'Creacion'),
+        ('update', 'Actualizacion'),
+        ('delete', 'Eliminacion'),
+        ('other', 'Otro cambio'),
+    ]
+
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='audit_logs')
+    actor_name = models.CharField(max_length=200)
+    actor_role_name = models.CharField(max_length=120, blank=True)
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES, default='other')
+    resource = models.CharField(max_length=120, blank=True)
+    entity_id = models.CharField(max_length=80, blank=True)
+    http_method = models.CharField(max_length=10)
+    path = models.CharField(max_length=255)
+    change_summary = models.TextField()
+    status_code = models.PositiveSmallIntegerField(default=200)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = 'Registro de auditoria'
+        verbose_name_plural = 'Registros de auditoria'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.actor_name} - {self.change_summary} ({self.created_at.isoformat()})'
     

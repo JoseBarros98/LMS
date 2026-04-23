@@ -19,8 +19,8 @@ from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from core.access import get_dashboard_sections, has_page_access, has_role_permission, is_admin_user
 from core.api_permissions import RoleActionPermission
-from .models import User, Role, PlatformSetting
-from .serializers import UserSerializer, RoleSerializer
+from .models import User, Role, PlatformSetting, AuditLog
+from .serializers import UserSerializer, RoleSerializer, AuditLogSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import CustomTokenObtainPairSerializer
 from rest_framework.response import Response
@@ -837,6 +837,26 @@ def db_backups_list(request):
         })
 
     return Response({'results': backups})
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def audit_logs_list(request):
+    if not has_page_access(request.user, 'auditoria'):
+        return Response(
+            {'detail': 'No tienes permisos para ver el modulo de auditoria.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    if not has_role_permission(request.user, 'audit_logs', 'read'):
+        return Response(
+            {'detail': 'No tienes permisos para consultar la auditoria.'},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+
+    queryset = AuditLog.objects.select_related('actor').all()[:500]
+    serializer = AuditLogSerializer(queryset, many=True)
+    return Response({'results': serializer.data})
 
 
 @api_view(['POST'])

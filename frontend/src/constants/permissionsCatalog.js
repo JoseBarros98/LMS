@@ -18,6 +18,7 @@ export const PERMISSIONS_CATALOG = {
       { key: 'roles', label: 'Roles' },
       { key: 'mensajes_whatsapp', label: 'Mensajes WhatsApp' },
       { key: 'backup_bd', label: 'Backup BD' },
+      { key: 'auditoria', label: 'Auditoria' },
     ],
   },
   dashboard: {
@@ -195,6 +196,12 @@ export const PERMISSIONS_CATALOG = {
       { key: 'export', label: 'Exportar' },
     ],
   },
+  audit_logs: {
+    label: 'Auditoria',
+    actions: [
+      { key: 'read', label: 'Ver Registros' },
+    ],
+  },
 }
 
 export const RESOURCE_ORDER = [
@@ -215,4 +222,5 @@ export const RESOURCE_ORDER = [
   'routes',
   'reports',
   'database_backups',
+  'audit_logs',
 ]
